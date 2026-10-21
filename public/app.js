@@ -11,6 +11,12 @@ let state = {
   isDirty: false
 };
 
+// Navigation History
+let navHistory = {
+  past: [],
+  future: []
+};
+
 // DOM Elements
 const sidebar = document.getElementById('sidebar');
 const splitter = document.getElementById('splitter');
@@ -22,6 +28,8 @@ const btnRefresh = document.getElementById('btnRefresh');
 const treeSearchInput = document.getElementById('treeSearchInput');
 const treeRoot = document.getElementById('treeRoot');
 
+const btnNavBack = document.getElementById('btnNavBack');
+const btnNavForward = document.getElementById('btnNavForward');
 const fileIcon = document.getElementById('fileIcon');
 const fileTitle = document.getElementById('fileTitle');
 const filePathDisplay = document.getElementById('filePathDisplay');
@@ -221,12 +229,12 @@ function createTreeNode(item) {
 }
 
 // Load File into Editor
-async function loadFile(filePath) {
-  if (!filePath) return;
+async function loadFile(filePath, isNavigatingHistory = false) {
+  if (!filePath) return false;
 
   // Don't reload if already open and clean
   if (state.currentFilePath === filePath && !state.isDirty) {
-    return;
+    return true;
   }
 
   // Auto-save existing file if dirty before loading new one
@@ -250,13 +258,24 @@ async function loadFile(filePath) {
   } catch (err) {
     console.error('Error fetching file:', err);
     alert('파일을 불러오지 못했습니다: ' + err.message);
-    return;
+    return false;
   }
 
   // 2. Safely update UI with loaded content
   try {
+    const previousPath = state.currentFilePath;
     state.currentFilePath = filePath;
     state.isDirty = false;
+
+    // Track navigation history
+    if (!isNavigatingHistory && previousPath && previousPath !== filePath) {
+      navHistory.past.push(previousPath);
+      if (navHistory.past.length > 50) {
+        navHistory.past.shift();
+      }
+      navHistory.future = [];
+    }
+    updateNavButtons();
 
     // Update Header (hide extension)
     const fileName = filePath.split(/[\\/]/).pop();
@@ -293,8 +312,72 @@ async function loadFile(filePath) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lastOpenedFile: filePath })
     }).catch(() => {});
+    return true;
   } catch (uiErr) {
     console.error('UI update error after file load:', uiErr);
+    return false;
+  }
+}
+
+// Navigation History: Go Back
+async function goBack() {
+  if (navHistory.past.length === 0) return;
+
+  if (state.isDirty && state.currentFilePath) {
+    try {
+      await saveCurrentFile(false);
+    } catch (e) {
+      console.warn('Auto-save prior to goBack failed:', e);
+    }
+  }
+
+  const prevPath = navHistory.past.pop();
+  if (state.currentFilePath) {
+    navHistory.future.push(state.currentFilePath);
+  }
+
+  const ok = await loadFile(prevPath, true);
+  if (!ok) {
+    if (navHistory.future.length > 0) {
+      navHistory.future.pop();
+    }
+  }
+  updateNavButtons();
+}
+
+// Navigation History: Go Forward
+async function goForward() {
+  if (navHistory.future.length === 0) return;
+
+  if (state.isDirty && state.currentFilePath) {
+    try {
+      await saveCurrentFile(false);
+    } catch (e) {
+      console.warn('Auto-save prior to goForward failed:', e);
+    }
+  }
+
+  const nextPath = navHistory.future.pop();
+  if (state.currentFilePath) {
+    navHistory.past.push(state.currentFilePath);
+  }
+
+  const ok = await loadFile(nextPath, true);
+  if (!ok) {
+    if (navHistory.past.length > 0) {
+      navHistory.past.pop();
+    }
+  }
+  updateNavButtons();
+}
+
+// Update History Navigation Buttons state
+function updateNavButtons() {
+  if (btnNavBack) {
+    btnNavBack.disabled = navHistory.past.length === 0;
+  }
+  if (btnNavForward) {
+    btnNavForward.disabled = navHistory.future.length === 0;
   }
 }
 
@@ -665,7 +748,12 @@ function promptRename(oldPath, currName) {
         if (!res.ok) throw new Error(data.error);
         await loadTree();
         if (state.currentFilePath === oldPath) {
-          await loadFile(data.newPath);
+          state.currentFilePath = data.newPath;
+        }
+        navHistory.past = navHistory.past.map(p => p === oldPath ? data.newPath : p);
+        navHistory.future = navHistory.future.map(p => p === oldPath ? data.newPath : p);
+        if (state.currentFilePath === data.newPath) {
+          await loadFile(data.newPath, true);
         }
       } catch (err) {
         alert(err.message);
@@ -688,7 +776,7 @@ function promptDelete(targetPath, name, isDir) {
       body: JSON.stringify({ targetPath })
     }).then(async (res) => {
       if (!res.ok) throw new Error('삭제 실패');
-      if (state.currentFilePath === targetPath) {
+      if (state.currentFilePath === targetPath || (isDir && state.currentFilePath?.startsWith(targetPath + '/'))) {
         state.currentFilePath = null;
         emptyState.classList.remove('hidden');
         memoTextarea.classList.add('hidden');
@@ -696,6 +784,9 @@ function promptDelete(targetPath, name, isDir) {
         filePathDisplay.textContent = '👈 왼쪽 트리에서 메모 파일을 선택하거나 새로 만드세요';
         btnManualSave.disabled = true;
       }
+      navHistory.past = navHistory.past.filter(p => p !== targetPath && (!isDir || !p.startsWith(targetPath + '/')));
+      navHistory.future = navHistory.future.filter(p => p !== targetPath && (!isDir || !p.startsWith(targetPath + '/')));
+      updateNavButtons();
       await loadTree();
     }).catch(err => alert(err.message));
   }
@@ -758,6 +849,21 @@ function setupEventListeners() {
   btnNewFolder.onclick = () => promptNewFolder();
   btnRefresh.onclick = loadTree;
   btnManualSave.onclick = () => saveCurrentFile(true);
+
+  // History Navigation Buttons
+  if (btnNavBack) btnNavBack.onclick = () => goBack();
+  if (btnNavForward) btnNavForward.onclick = () => goForward();
+
+  // Mouse Back / Forward buttons (buttons 3 and 4)
+  window.addEventListener('mouseup', (e) => {
+    if (e.button === 3) {
+      e.preventDefault();
+      goBack();
+    } else if (e.button === 4) {
+      e.preventDefault();
+      goForward();
+    }
+  });
 
   // Link Insertion
   btnInsertLink.onclick = openLinkSelectorModal;
@@ -904,21 +1010,83 @@ function setupKeyboardShortcuts() {
     if (mod && (e.key === 's' || e.key === 'S')) {
       e.preventDefault();
       saveCurrentFile(true);
+      return;
     }
     // Cmd/Ctrl + K: Insert Memo Link
     if (mod && (e.key === 'k' || e.key === 'K')) {
       e.preventDefault();
       if (!btnInsertLink.disabled) openLinkSelectorModal();
+      return;
     }
     // Cmd/Ctrl + N: New File
     if (mod && (e.key === 'n' || e.key === 'N')) {
       e.preventDefault();
       promptNewFile();
+      return;
     }
     // Cmd/Ctrl + O: Change Folder
     if (mod && (e.key === 'o' || e.key === 'O')) {
       e.preventDefault();
       handleChangeFolder();
+      return;
+    }
+
+    // Navigation Back:
+    // - Mac: Cmd + [
+    // - Windows/Universal: Ctrl + [
+    // - Windows standard: Alt + ArrowLeft
+    // - Alt + Cmd + ArrowLeft / Alt + Ctrl + ArrowLeft
+    // - Multimedia Key: BrowserBack
+    if (
+      (mod && e.key === '[') ||
+      (e.altKey && e.key === 'ArrowLeft') ||
+      (mod && e.altKey && e.key === 'ArrowLeft') ||
+      e.key === 'BrowserBack'
+    ) {
+      e.preventDefault();
+      goBack();
+      return;
+    }
+
+    // Navigation Forward:
+    // - Mac: Cmd + ]
+    // - Windows/Universal: Ctrl + ]
+    // - Windows standard: Alt + ArrowRight
+    // - Alt + Cmd + ArrowRight / Alt + Ctrl + ArrowRight
+    // - Multimedia Key: BrowserForward
+    if (
+      (mod && e.key === ']') ||
+      (e.altKey && e.key === 'ArrowRight') ||
+      (mod && e.altKey && e.key === 'ArrowRight') ||
+      e.key === 'BrowserForward'
+    ) {
+      e.preventDefault();
+      goForward();
+      return;
+    }
+
+    // When NOT actively typing inside textarea or an input field:
+    // Support Cmd + ArrowLeft / Ctrl + ArrowLeft or Backspace
+    const isEditingText =
+      document.activeElement === memoTextarea ||
+      document.activeElement?.tagName === 'INPUT' ||
+      document.activeElement?.tagName === 'TEXTAREA';
+    if (!isEditingText) {
+      if (mod && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        goBack();
+        return;
+      }
+      if (mod && e.key === 'ArrowRight') {
+        e.preventDefault();
+        goForward();
+        return;
+      }
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        goBack();
+        return;
+      }
     }
   });
 }

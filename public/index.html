@@ -60,6 +60,15 @@
       <!-- Top Action Header -->
       <header class="editor-header" id="editorHeader">
         <div class="file-info-group">
+          <!-- Back and Forward History Navigation Buttons -->
+          <div class="nav-history-buttons">
+            <button class="btn btn-icon btn-sm" id="btnNavBack" disabled title="이전 메모로 뒤로가기 (단축키: Cmd+[ 또는 Alt+←)">
+              ◀
+            </button>
+            <button class="btn btn-icon btn-sm" id="btnNavForward" disabled title="다음 메모로 앞으로가기 (단축키: Cmd+] 또는 Alt+→)">
+              ▶
+            </button>
+          </div>
           <span class="file-type-icon" id="fileIcon">📝</span>
           <div class="file-titles">
             <h1 class="file-title" id="fileTitle">선택된 메모 없음</h1>
@@ -140,6 +149,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=3"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

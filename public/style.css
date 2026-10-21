@@ -408,6 +408,35 @@ body, html {
   overflow: hidden;
 }
 
+.nav-history-buttons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.nav-history-buttons .btn {
+  padding: 3px 8px;
+  font-size: 11px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  border-radius: 4px;
+}
+
+.nav-history-buttons .btn:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+}
+
+.nav-history-buttons .btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
 .file-type-icon {
   font-size: 24px;
 }
