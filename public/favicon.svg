@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%">
+  <defs>
+    <!-- Shadow filter -->
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+    <!-- Header gradient -->
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+    <!-- Paper gradient -->
+    <linearGradient id="paperGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F8FAFC" />
+    </linearGradient>
+  </defs>
+
+  <!-- Memo Pad with Shadow -->
+  <g filter="url(#shadow)">
+    <!-- Main Board -->
+    <rect x="14" y="10" width="100" height="108" rx="20" fill="url(#paperGrad)" stroke="#CBD5E1" stroke-width="1.5" />
+    
+    <!-- Top Header Clip / Band -->
+    <path d="M 14 30 L 14 30 A 20 20 0 0 1 34 10 L 94 10 A 20 20 0 0 1 114 30 L 114 34 L 14 34 Z" fill="url(#headerGrad)" />
+    <line x1="14" y1="34" x2="114" y2="34" stroke="#B45309" stroke-width="1.5" />
+
+    <!-- Spiral Binder Ring Holes -->
+    <circle cx="28" cy="22" r="3.5" fill="#78350F" />
+    <circle cx="28" cy="22" r="2" fill="#FEF3C7" />
+    <circle cx="46" cy="22" r="3.5" fill="#78350F" />
+    <circle cx="46" cy="22" r="2" fill="#FEF3C7" />
+    <circle cx="64" cy="22" r="3.5" fill="#78350F" />
+    <circle cx="64" cy="22" r="2" fill="#FEF3C7" />
+    <circle cx="82" cy="22" r="3.5" fill="#78350F" />
+    <circle cx="82" cy="22" r="2" fill="#FEF3C7" />
+    <circle cx="100" cy="22" r="3.5" fill="#78350F" />
+    <circle cx="100" cy="22" r="2" fill="#FEF3C7" />
+
+    <!-- Red Margin line -->
+    <line x1="32" y1="35" x2="32" y2="112" stroke="#FCA5A5" stroke-width="1.5" />
+
+    <!-- Blue Ruled Lines -->
+    <line x1="22" y1="48" x2="106" y2="48" stroke="#E2E8F0" stroke-width="1.5" />
+    <line x1="22" y1="62" x2="106" y2="62" stroke="#E2E8F0" stroke-width="1.5" />
+    <line x1="22" y1="76" x2="106" y2="76" stroke="#E2E8F0" stroke-width="1.5" />
+    <line x1="22" y1="90" x2="106" y2="90" stroke="#E2E8F0" stroke-width="1.5" />
+    <line x1="22" y1="104" x2="106" y2="104" stroke="#E2E8F0" stroke-width="1.5" />
+
+    <!-- Simulated Text -->
+    <rect x="38" y="42" width="36" height="4" rx="2" fill="#3B82F6" />
+    <rect x="38" y="56" width="58" height="3" rx="1.5" fill="#94A3B8" />
+    <rect x="38" y="70" width="50" height="3" rx="1.5" fill="#94A3B8" />
+    <rect x="38" y="84" width="42" height="3" rx="1.5" fill="#94A3B8" />
+  </g>
+
+  <!-- Angled Pencil at Bottom-Right -->
+  <g transform="translate(76, 70) rotate(-45)">
+    <!-- Eraser -->
+    <rect x="-4.5" y="-28" width="9" height="7" rx="2.5" fill="#F472B6" />
+    <!-- Metal Band -->
+    <rect x="-4.5" y="-21" width="9" height="5" fill="#CBD5E1" />
+    <!-- Pencil Body -->
+    <rect x="-4.5" y="-16" width="9" height="32" fill="#F59E0B" />
+    <rect x="-1.5" y="-16" width="4" height="32" fill="#FBBF24" />
+    <!-- Wood Sharpened Tip -->
+    <polygon points="-4.5,16 4.5,16 0,26" fill="#FDE68A" />
+    <!-- Graphite Lead Tip -->
+    <polygon points="-1.8,22 1.8,22 0,26" fill="#1E293B" />
+  </g>
+</svg>

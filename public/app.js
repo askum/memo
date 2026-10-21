@@ -27,6 +27,7 @@ const btnNewFolder = document.getElementById('btnNewFolder');
 const btnRefresh = document.getElementById('btnRefresh');
 const treeSearchInput = document.getElementById('treeSearchInput');
 const treeRoot = document.getElementById('treeRoot');
+const btnThemeToggle = document.getElementById('btnThemeToggle');
 
 const btnNavBack = document.getElementById('btnNavBack');
 const btnNavForward = document.getElementById('btnNavForward');
@@ -65,8 +66,51 @@ function getDisplayName(name, isDir) {
   return name.replace(/\.(txt|md|markdown)$/i, '');
 }
 
+// Theme Manager (Light / Dark Mode)
+function initTheme() {
+  const saved = localStorage.getItem('memo_theme');
+  if (saved === 'dark' || saved === 'light') {
+    applyTheme(saved, false);
+  } else {
+    const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    applyTheme(isDark ? 'dark' : 'light', false);
+  }
+
+  if (window.matchMedia) {
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      if (!localStorage.getItem('memo_theme')) {
+        applyTheme(e.matches ? 'dark' : 'light', false);
+      }
+    });
+  }
+}
+
+function applyTheme(theme, save = true) {
+  document.documentElement.setAttribute('data-theme', theme);
+  if (save) {
+    localStorage.setItem('memo_theme', theme);
+  }
+  if (btnThemeToggle) {
+    if (theme === 'dark') {
+      btnThemeToggle.textContent = '☀️';
+      btnThemeToggle.title = '라이트 모드로 변경';
+    } else {
+      btnThemeToggle.textContent = '🌙';
+      btnThemeToggle.title = '다크 모드로 변경';
+    }
+  }
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 
+    (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next, true);
+}
+
 // Init Application
 async function init() {
+  initTheme();
   setupSplitter();
   setupKeyboardShortcuts();
   setupEventListeners();
@@ -873,6 +917,9 @@ function setupEventListeners() {
   btnNewFolder.onclick = () => promptNewFolder();
   btnRefresh.onclick = loadTree;
   btnManualSave.onclick = () => saveCurrentFile(true);
+
+  // Theme Toggle Button
+  if (btnThemeToggle) btnThemeToggle.onclick = toggleTheme;
 
   // History Navigation Buttons
   if (btnNavBack) btnNavBack.onclick = () => goBack();
