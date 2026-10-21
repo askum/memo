@@ -80,14 +80,6 @@
 
       <!-- Text Editor Container -->
       <div class="editor-body" id="editorBody">
-        <!-- Always Visible Linked Memos Bar -->
-        <div class="linked-memos-bar" id="linkedMemosBar">
-          <span class="linked-label">🔗 연결된 메모:</span>
-          <div class="linked-pills" id="linkedPills">
-            <span class="empty-hint">연결된 메모 없음 (우측 상단 [🔗 링크 삽입] 클릭 또는 본문에 [[메모이름]] 입력)</span>
-          </div>
-        </div>
-
         <div class="empty-state" id="emptyState">
           <div class="empty-content">
             <span class="empty-icon">📂</span>
@@ -99,7 +91,7 @@
         <textarea 
           id="memoTextarea" 
           class="memo-textarea hidden" 
-          placeholder="여기에 자유롭게 메모를 작성하세요... (입력시 자동으로 실시간 저장됩니다)&#10;다른 메모로 연결하려면 우측 상단 [🔗 링크 삽입]을 누르거나 '[[메모이름]]'을 적어두면 됩니다."
+          placeholder="여기에 자유롭게 메모를 작성하세요... (입력시 자동으로 실시간 저장됩니다)&#10;다른 메모로 연결하려면 우측 상단 [🔗 링크 삽입]을 누르거나 '[[메모이름]]'을 적어두고 더블 클릭하면 됩니다."
           spellcheck="false"
         ></textarea>
       </div>

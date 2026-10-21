@@ -27,8 +27,6 @@ const filePathDisplay = document.getElementById('filePathDisplay');
 const saveStatusBadge = document.getElementById('saveStatusBadge');
 const btnManualSave = document.getElementById('btnManualSave');
 const btnInsertLink = document.getElementById('btnInsertLink');
-const linkedMemosBar = document.getElementById('linkedMemosBar');
-const linkedPills = document.getElementById('linkedPills');
 const emptyState = document.getElementById('emptyState');
 const memoTextarea = document.getElementById('memoTextarea');
 
@@ -267,7 +265,6 @@ async function loadFile(filePath) {
     updateSaveStatus('saved');
     updateStats();
     updateCursorPos();
-    updateLinkedMemosBar();
 
     // Re-highlight active tree node
     document.querySelectorAll('.tree-item').forEach(el => {
@@ -398,40 +395,6 @@ async function jumpToMemo(target) {
   }
 }
 
-// Update Linked Memos Quick Bar
-function updateLinkedMemosBar() {
-  if (!state.currentFilePath) {
-    linkedPills.innerHTML = '<span class="empty-hint">메모를 선택하세요.</span>';
-    return;
-  }
-
-  const text = memoTextarea.value || '';
-  // Match [[메모이름]] or [라벨](경로)
-  const wikiMatches = [...text.matchAll(/\[\[(.*?)\]\]/g)].map(m => m[1].trim());
-  const mdMatches = [...text.matchAll(/\[(.*?)\]\((.*?)\)/g)].map(m => m[2].trim());
-  const uniqueLinks = Array.from(new Set([...wikiMatches, ...mdMatches])).filter(Boolean);
-
-  if (uniqueLinks.length === 0) {
-    linkedPills.innerHTML = '<span class="empty-hint">연결된 메모 없음 (우측 상단 [🔗 링크 삽입] 클릭 또는 본문에 [[메모이름]] 입력)</span>';
-    return;
-  }
-
-  linkedPills.innerHTML = '';
-
-  uniqueLinks.forEach(linkTarget => {
-    const pill = document.createElement('button');
-    pill.className = 'linked-pill';
-    pill.type = 'button';
-    pill.innerHTML = `<span>📄</span><span>${escapeHtml(linkTarget)}</span><span>↗</span>`;
-    pill.title = `'${linkTarget}' 메모로 즉시 이동`;
-    pill.onclick = (e) => {
-      e.preventDefault();
-      jumpToMemo(linkTarget);
-    };
-    linkedPills.appendChild(pill);
-  });
-}
-
 // Open Link Insertion Modal
 function openLinkSelectorModal() {
   const allFiles = getAllMemoFiles(state.treeData).filter(f => f.path !== state.currentFilePath);
@@ -485,7 +448,6 @@ function insertLinkIntoTextarea(linkText) {
   state.isDirty = true;
   updateSaveStatus('saving');
   updateStats();
-  updateLinkedMemosBar();
 
   if (state.saveTimeout) clearTimeout(state.saveTimeout);
   state.saveTimeout = setTimeout(() => saveCurrentFile(false), 500);
@@ -682,13 +644,12 @@ function setupEventListeners() {
   btnInsertLink.onclick = openLinkSelectorModal;
   btnLinkModalCancel.onclick = () => linkModalOverlay.classList.add('hidden');
 
-  // Auto-Save Debounce & Link Bar Update
+  // Auto-Save Debounce
   memoTextarea.addEventListener('input', () => {
     state.isDirty = true;
     updateSaveStatus('saving');
     updateStats();
     updateCursorPos();
-    updateLinkedMemosBar();
 
     if (state.saveTimeout) clearTimeout(state.saveTimeout);
     state.saveTimeout = setTimeout(() => {
@@ -732,7 +693,7 @@ function setupEventListeners() {
   };
 }
 
-// Detect [[link]] under cursor on Cmd/Ctrl+Click in textarea
+// Detect [[link]] or [label](target) under cursor on double-click or Cmd/Ctrl+Click
 function handleTextareaLinkClick() {
   const pos = memoTextarea.selectionStart;
   const val = memoTextarea.value;
@@ -743,9 +704,28 @@ function handleTextareaLinkClick() {
   const closeBracket = after.indexOf(']]');
 
   if (openBracket !== -1 && closeBracket !== -1) {
-    const target = val.substring(openBracket + 2, pos + closeBracket).trim();
-    if (target) {
-      jumpToMemo(target);
+    const betweenBefore = before.substring(openBracket + 2);
+    const betweenAfter = after.substring(0, closeBracket);
+    if (!betweenBefore.includes(']]') && !betweenAfter.includes('[[')) {
+      const target = (betweenBefore + betweenAfter).trim();
+      if (target) {
+        jumpToMemo(target);
+        return;
+      }
+    }
+  }
+
+  // Markdown link [title](target)
+  const mdMatches = [...val.matchAll(/\[(.*?)\]\((.*?)\)/g)];
+  for (const m of mdMatches) {
+    const start = m.index;
+    const end = m.index + m[0].length;
+    if (pos >= start && pos <= end) {
+      const target = m[2].trim();
+      if (target) {
+        jumpToMemo(target);
+        return;
+      }
     }
   }
 }
