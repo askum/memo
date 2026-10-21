@@ -1,4 +1,4 @@
 """UI Components for Desktop Memo"""
-from .app_window import AppWindow
+from .main_window import MainWindow
 
-__all__ = ["AppWindow"]
+__all__ = ["MainWindow"]

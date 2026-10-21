@@ -1,96 +1,64 @@
-"""Unit and integration tests for Database, Models, and Utilities."""
+"""Unit tests for FileManager and Config."""
 import os
 import tempfile
 import unittest
-from app.database import Database
-from app.utils import format_timestamp, get_snippet, export_note_to_file
+from app.file_manager import FileManager
+from app.config import Config
 
 
-class TestMemoApp(unittest.TestCase):
+class TestFileManager(unittest.TestCase):
     def setUp(self):
-        # Create a temporary database file
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.db_path = os.path.join(self.temp_dir.name, "test_memo.db")
-        self.db = Database(self.db_path)
+        self.root = self.temp_dir.name
 
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    def test_database_initialization(self):
-        # Should initialize with default categories and welcome note
-        categories = self.db.get_categories()
-        self.assertGreaterEqual(len(categories), 3)
+    def test_seed_and_tree(self):
+        # Initial seed
+        FileManager.ensure_initial_seed(self.root)
+        tree = FileManager.get_directory_tree(self.root)
+        self.assertGreaterEqual(len(tree), 3)
 
-        notes = self.db.get_notes()
-        self.assertGreaterEqual(len(notes), 1)
-        self.assertIn("데스크톱 메모 앱", notes[0]["title"])
+        names = [item["name"] for item in tree]
+        self.assertIn("업무", names)
+        self.assertIn("환영합니다.md", names)
 
-    def test_category_crud(self):
-        # Add Category
-        cat_id = self.db.add_category("프로젝트", "🚀")
-        self.assertIsNotNone(cat_id)
+    def test_create_and_read_file(self):
+        filepath = FileManager.create_file(self.root, "test_note.md")
+        self.assertTrue(os.path.exists(filepath))
 
-        categories = {c["name"]: c for c in self.db.get_categories()}
-        self.assertIn("프로젝트", categories)
-        self.assertEqual(categories["프로젝트"]["icon"], "🚀")
+        content = FileManager.read_file(filepath)
+        self.assertIn("# test_note", content)
 
-        # Update Category
-        self.db.update_category(cat_id, "완료된 프로젝트", "✅")
-        categories_updated = {c["name"]: c for c in self.db.get_categories()}
-        self.assertIn("완료된 프로젝트", categories_updated)
+        # Write and read back
+        FileManager.write_file(filepath, "수정된 내용입니다.")
+        self.assertEqual(FileManager.read_file(filepath), "수정된 내용입니다.")
 
-        # Delete Category
-        self.db.delete_category(cat_id)
-        categories_after_del = {c["name"]: c for c in self.db.get_categories()}
-        self.assertNotIn("완료된 프로젝트", categories_after_del)
+    def test_create_folder_and_nested_file(self):
+        folder_path = FileManager.create_folder(self.root, "하위폴더")
+        self.assertTrue(os.path.isdir(folder_path))
 
-    def test_note_crud_and_search(self):
-        # Create Category
-        cat_id = self.db.add_category("독서", "📚")
+        nested_file = FileManager.create_file(folder_path, "중첩메모.txt")
+        self.assertTrue(os.path.isfile(nested_file))
 
-        # Create Note
-        note_id = self.db.create_note(
-            title="클린 코드 독서 메모",
-            content="함수는 한 가지 작업만 해야 한다.",
-            category_id=cat_id
-        )
-        self.assertIsNotNone(note_id)
+        tree = FileManager.get_directory_tree(self.root)
+        subfolder_item = next(item for item in tree if item["name"] == "하위폴더")
+        self.assertEqual(len(subfolder_item["children"]), 1)
+        self.assertEqual(subfolder_item["children"][0]["name"], "중첩메모.txt")
 
-        # Retrieve Note
-        note = self.db.get_note(note_id)
-        self.assertEqual(note["title"], "클린 코드 독서 메모")
-        self.assertEqual(note["category_name"], "독서")
+    def test_rename_and_delete(self):
+        filepath = FileManager.create_file(self.root, "삭제할메모.md")
+        self.assertTrue(os.path.exists(filepath))
 
-        # Search Note
-        search_results = self.db.get_notes(search_query="한 가지 작업")
-        self.assertEqual(len(search_results), 1)
-        self.assertEqual(search_results[0]["id"], note_id)
+        # Rename
+        renamed_path = FileManager.rename(filepath, "이름변경된메모.md")
+        self.assertFalse(os.path.exists(filepath))
+        self.assertTrue(os.path.exists(renamed_path))
 
-        # Update Note
-        self.db.update_note(note_id, "클린 코드 핵심 요약", "리팩터링은 수시로 진행한다.", cat_id)
-        updated_note = self.db.get_note(note_id)
-        self.assertEqual(updated_note["title"], "클린 코드 핵심 요약")
-        self.assertEqual(updated_note["content"], "리팩터링은 수시로 진행한다.")
-
-        # Delete Note
-        self.db.delete_note(note_id)
-        deleted = self.db.get_note(note_id)
-        self.assertIsNone(deleted)
-
-    def test_utils(self):
-        # Snippet test
-        multiline_text = "\n\n첫 번째 줄 내용입니다.\n두 번째 줄입니다."
-        snippet = get_snippet(multiline_text)
-        self.assertEqual(snippet, "첫 번째 줄 내용입니다.")
-
-        # Export test
-        export_file = os.path.join(self.temp_dir.name, "exported_note.md")
-        export_note_to_file(export_file, "테스트 메모", "본문 내용입니다.", "업무")
-        self.assertTrue(os.path.exists(export_file))
-        with open(export_file, "r", encoding="utf-8") as f:
-            content = f.read()
-            self.assertIn("# 테스트 메모", content)
-            self.assertIn("> 카테고리: 업무", content)
+        # Delete
+        FileManager.delete(renamed_path)
+        self.assertFalse(os.path.exists(renamed_path))
 
 
 if __name__ == "__main__":
