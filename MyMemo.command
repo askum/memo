@@ -2,11 +2,9 @@
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
 
-# Run node server
-node server.js
+# Launch node server detached in background so Terminal has no running child process
+nohup node server.js >/dev/null 2>&1 &
 
-# Close the Terminal window automatically when program exits
-osascript -e 'tell application "Terminal" to close (every window whose name contains "MyMemo")' >/dev/null 2>&1
-osascript -e 'tell application "Terminal" to close front window' >/dev/null 2>&1
-kill -9 $PPID >/dev/null 2>&1
+# Close this Terminal window immediately without any prompt
+osascript -e 'tell application "Terminal" to close front window' >/dev/null 2>&1 &
 exit 0
