@@ -50,6 +50,12 @@ const linkSearchInput = document.getElementById('linkSearchInput');
 const linkItemsList = document.getElementById('linkItemsList');
 const btnLinkModalCancel = document.getElementById('btnLinkModalCancel');
 
+// Helper to hide file extension in UI
+function getDisplayName(name, isDir) {
+  if (isDir || !name) return name || '';
+  return name.replace(/\.(txt|md|markdown)$/i, '');
+}
+
 // Init Application
 async function init() {
   setupSplitter();
@@ -137,10 +143,10 @@ function createTreeNode(item) {
   icon.textContent = item.isDir ? '📁' : '📝';
   row.appendChild(icon);
 
-  // Label
+  // Label (without extension)
   const label = document.createElement('span');
   label.className = 'tree-item-label';
-  label.textContent = item.name;
+  label.textContent = getDisplayName(item.name, item.isDir);
   row.appendChild(label);
 
   // Hover Actions
@@ -248,11 +254,12 @@ async function loadFile(filePath) {
     state.currentFilePath = filePath;
     state.isDirty = false;
 
-    // Update Header
+    // Update Header (hide extension)
     const fileName = filePath.split(/[\\/]/).pop();
     fileIcon.textContent = '📝';
-    fileTitle.textContent = fileName;
-    filePathDisplay.textContent = filePath.replace(state.rootFolder, '').replace(/^[\\/]/, '') || fileName;
+    fileTitle.textContent = getDisplayName(fileName, false);
+    const relPath = filePath.replace(state.rootFolder, '').replace(/^[\\/]/, '') || fileName;
+    filePathDisplay.textContent = getDisplayName(relPath, false);
 
     // Show Editor
     emptyState.classList.add('hidden');
@@ -375,7 +382,7 @@ async function jumpToMemo(target) {
     await loadFile(matchedPath);
   } else {
     // Prompt to create target memo if it doesn't exist
-    const defaultName = cleanTarget.endsWith('.md') || cleanTarget.endsWith('.txt') ? cleanTarget : `${cleanTarget}.md`;
+    const defaultName = cleanTarget.endsWith('.txt') || cleanTarget.endsWith('.md') ? cleanTarget : `${cleanTarget}.txt`;
     if (confirm(`'${cleanTarget}' 메모를 찾을 수 없습니다.\n새로운 메모로 바로 생성하시겠습니까?`)) {
       const activeDir = getActiveTargetDir();
       try {
@@ -420,16 +427,17 @@ function renderLinkItems(files) {
   files.forEach(file => {
     const row = document.createElement('div');
     row.className = 'link-item-row';
-    const relPath = file.path.replace(state.rootFolder, '').replace(/^[\\/]/, '');
+    const cleanName = getDisplayName(file.name, false);
+    const relPath = getDisplayName(file.path.replace(state.rootFolder, '').replace(/^[\\/]/, ''), false);
 
     row.innerHTML = `
       <span style="font-size: 14px;">📝</span>
-      <span class="link-item-name">${escapeHtml(file.name)}</span>
+      <span class="link-item-name">${escapeHtml(cleanName)}</span>
       <span class="link-item-path">${escapeHtml(relPath)}</span>
     `;
 
     row.onclick = () => {
-      insertLinkIntoTextarea(`[[${file.name}]]`);
+      insertLinkIntoTextarea(`[[${cleanName}]]`);
       linkModalOverlay.classList.add('hidden');
     };
 
@@ -488,8 +496,8 @@ function closeModal() {
 function promptNewFile(targetDir) {
   const dir = targetDir || getActiveTargetDir();
   showModal(
-    '새 메모 파일 만들기',
-    `생성할 파일 이름을 입력하세요 (예: 회의록.md, 아이디어.txt):`,
+    '새 메모 만들기',
+    `생성할 메모 이름을 입력하세요 (예: 회의록, 아이디어):`,
     '',
     async (fileName) => {
       if (!fileName.trim()) return;
@@ -535,12 +543,14 @@ function promptNewFolder(targetDir) {
 }
 
 function promptRename(oldPath, currName) {
+  const isDir = !pathHasExtension(currName);
+  const cleanCurrent = getDisplayName(currName, isDir);
   showModal(
     '이름 변경',
     `새로운 이름을 입력하세요:`,
-    currName,
+    cleanCurrent,
     async (newName) => {
-      if (!newName.trim() || newName.trim() === currName) return;
+      if (!newName.trim() || newName.trim() === cleanCurrent) return;
       try {
         const res = await fetch('/api/rename', {
           method: 'POST',
@@ -560,9 +570,14 @@ function promptRename(oldPath, currName) {
   );
 }
 
+function pathHasExtension(p) {
+  return /\.(txt|md|markdown|json|csv)$/i.test(p);
+}
+
 function promptDelete(targetPath, name, isDir) {
-  const itemType = isDir ? '폴더' : '파일';
-  if (confirm(`정말로 ${itemType} '${name}'을(를) 삭제하시겠습니까?`)) {
+  const itemType = isDir ? '폴더' : '메모';
+  const displayTitle = getDisplayName(name, isDir);
+  if (confirm(`정말로 ${itemType} '${displayTitle}'을(를) 삭제하시겠습니까?`)) {
     fetch('/api/delete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

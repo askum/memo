@@ -49,18 +49,18 @@ function ensureSeedFiles(folder) {
     fs.mkdirSync(path.join(folder, '업무'), { recursive: true });
     fs.mkdirSync(path.join(folder, '개인'), { recursive: true });
     fs.mkdirSync(path.join(folder, '아이디어'), { recursive: true });
-    const welcomeText = `# 📝 데스크톱 메모장에 오신 것을 환영합니다!
+    const welcomeText = `📝 데스크톱 메모장에 오신 것을 환영합니다!
 
 왼쪽 창에서 폴더를 지정하고, 원하는 위치에 파일이나 새 폴더를 바로 만들어보세요.
 
-### 📌 주요 기능
-1. **폴더 선택**: 좌측 상단 [📂 폴더 변경] 버튼으로 원하는 메모 저장 위치를 지정할 수 있습니다.
-2. **새 메모 생성**: [+ 📝 새 메모] 버튼을 누르면 선택된 폴더에 새 마크다운(.md) 파일이 생성됩니다.
-3. **새 폴더 생성**: [+ 📁 새 폴더] 버튼으로 하위 폴더를 자유롭게 만듭니다.
-4. **실시간 자동 저장**: 우측 창에서 메모를 입력하면 파일로 즉시 자동 저장됩니다. (Cmd+S 또는 Ctrl+S 수동 저장도 가능)
-5. **우클릭/호버 메뉴**: 파일이나 폴더의 이름 변경, 삭제를 편리하게 실행할 수 있습니다.
+📌 주요 기능:
+1. 폴더 선택: 좌측 상단 [폴더 변경] 버튼으로 원하는 메모 저장 위치를 지정할 수 있습니다.
+2. 새 메모 생성: [+ 📝 새 메모] 버튼을 누르면 새 메모가 생성됩니다.
+3. 새 폴더 생성: [+ 📁 새 폴더] 버튼으로 하위 폴더를 자유롭게 만듭니다.
+4. 메모 간 이동: 본문에 [[회의록]] 같은 링크를 적어두고 더블 클릭하면 바로 이동합니다.
+5. 실시간 자동 저장: 우측 창에서 메모를 입력하면 파일로 즉시 자동 저장됩니다.
 `;
-    fs.writeFileSync(path.join(folder, '환영합니다.md'), welcomeText, 'utf-8');
+    fs.writeFileSync(path.join(folder, '환영합니다.txt'), welcomeText, 'utf-8');
   }
 }
 
@@ -300,13 +300,12 @@ const server = http.createServer(async (req, res) => {
       let { dirPath, fileName } = await parseBody(req);
       fileName = (fileName || '').trim();
       if (!fileName) return sendJSON(res, 400, { error: '파일 이름을 입력하세요.' });
-      if (!path.extname(fileName)) fileName += '.md';
+      if (!path.extname(fileName)) fileName += '.txt';
       const fullPath = path.join(dirPath, fileName);
       if (fs.existsSync(fullPath)) {
         return sendJSON(res, 400, { error: `'${fileName}' 파일이 이미 존재합니다.` });
       }
-      const initialContent = `# ${path.basename(fileName, path.extname(fileName))}\n\n`;
-      fs.writeFileSync(fullPath, initialContent, 'utf-8');
+      fs.writeFileSync(fullPath, '', 'utf-8');
       return sendJSON(res, 200, { success: true, path: fullPath });
     }
 
@@ -326,8 +325,12 @@ const server = http.createServer(async (req, res) => {
     // API: Rename
     if (pathname === '/api/rename' && req.method === 'POST') {
       const { oldPath, newName } = await parseBody(req);
-      const name = (newName || '').trim();
+      let name = (newName || '').trim();
       if (!name) return sendJSON(res, 400, { error: '새 이름을 입력하세요.' });
+      const oldExt = path.extname(oldPath);
+      if (!path.extname(name) && oldExt) {
+        name += oldExt;
+      }
       const parentDir = path.dirname(oldPath);
       const newPath = path.join(parentDir, name);
       if (fs.existsSync(newPath)) {
