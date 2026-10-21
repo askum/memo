@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>데스크톱 메모 - Desktop Memo (무설치 브라우저 버전)</title>
+  <style>
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8fafc;
+      --bg-tertiary: #f1f5f9;
+      --bg-hover: #e2e8f0;
+      --bg-active: #e0e7ff;
+      --border-color: #e2e8f0;
+      --text-primary: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #94a3b8;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --saved: #10b981;
+      --saving: #f59e0b;
+      --font-mono: "SF Mono", Menlo, Consolas, Monaco, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #121316;
+        --bg-secondary: #1a1b20;
+        --bg-tertiary: #23252c;
+        --bg-hover: #2d3039;
+        --bg-active: #1e293b;
+        --border-color: #2b2e38;
+        --text-primary: #f8fafc;
+        --text-secondary: #cbd5e1;
+        --text-muted: #64748b;
+        --accent: #3b82f6;
+        --accent-hover: #60a5fa;
+        --saved: #34d399;
+        --saving: #fbbf24;
+      }
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html { width: 100%; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg-primary); color: var(--text-primary); overflow: hidden; user-select: none; }
+    .app { display: flex; width: 100vw; height: 100vh; }
+    .sidebar { width: 300px; min-width: 240px; background: var(--bg-secondary); border-right: 1px solid var(--border-color); display: flex; flex-direction: column; }
+    .sidebar-header { padding: 14px 16px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; }
+    .brand { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .folder-bar { margin: 10px 12px; padding: 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; }
+    .folder-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .toolbar { padding: 0 12px 8px; display: flex; gap: 6px; }
+    .btn { padding: 5px 10px; font-size: 12px; font-weight: 500; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-tertiary); color: var(--text-primary); cursor: pointer; transition: 0.15s; }
+    .btn:hover { background: var(--bg-hover); }
+    .btn-primary { background: var(--accent); color: #fff; border: none; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .tree-view { flex: 1; overflow-y: auto; padding: 4px 8px 16px; }
+    .tree-item { display: flex; align-items: center; padding: 5px 8px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+    .tree-item:hover { background: var(--bg-hover); }
+    .tree-item.active { background: var(--bg-active); color: var(--accent); font-weight: 600; }
+    .tree-icon { margin-right: 6px; font-size: 14px; }
+    .tree-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tree-children { margin-left: 14px; border-left: 1px dashed var(--border-color); padding-left: 4px; }
+    .editor { flex: 1; display: flex; flex-direction: column; background: var(--bg-primary); }
+    .editor-header { padding: 12px 20px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; }
+    .file-name { font-size: 16px; font-weight: 700; }
+    .status-pill { font-size: 12px; font-weight: 500; }
+    .status-pill.saved { color: var(--saved); }
+    .status-pill.saving { color: var(--saving); }
+    .editor-body { flex: 1; display: flex; position: relative; }
+    .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); }
+    .memo-area { flex: 1; width: 100%; border: none; outline: none; padding: 24px; font-family: var(--font-mono); font-size: 14px; line-height: 1.6; background: var(--bg-primary); color: var(--text-primary); resize: none; user-select: text; }
+    .editor-footer { padding: 6px 20px; border-top: 1px solid var(--border-color); background: var(--bg-secondary); font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand"><span>📝</span> Desktop Memo</div>
+      </div>
+      <div class="folder-bar">
+        <span class="folder-title" id="folderTitle">폴더가 선택되지 않음</span>
+        <button class="btn btn-primary" id="btnPickFolder">폴더 열기</button>
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="btnNewFile">+ 📝 새 메모</button>
+        <button class="btn" id="btnNewFolder">+ 📁 새 폴더</button>
+      </div>
+      <div class="tree-view" id="treeView">
+        <div style="padding: 20px 10px; color: var(--text-muted); font-size: 12px; text-align: center;">
+          상단 <strong>[폴더 열기]</strong>를 눌러<br>메모를 보관할 폴더를 선택하세요.
+        </div>
+      </div>
+    </aside>
+
+    <main class="editor">
+      <header class="editor-header">
+        <div class="file-name" id="fileName">선택된 파일 없음</div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span class="status-pill" id="statusPill"></span>
+          <button class="btn btn-primary" id="btnSave" disabled>💾 저장</button>
+        </div>
+      </header>
+
+      <div class="editor-body">
+        <div class="empty" id="emptyView">
+          <div style="font-size: 40px; margin-bottom: 12px;">👈</div>
+          <p>왼쪽에서 폴더를 열고 메모 파일을 선택하세요.</p>
+        </div>
+        <textarea id="memoArea" class="memo-area hidden" placeholder="여기에 메모를 입력하세요... (자동 저장됩니다)"></textarea>
+      </div>
+
+      <footer class="editor-footer">
+        <span id="statChars">0 글자 | 0 단어</span>
+        <span id="saveNotice">준비됨</span>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    let rootHandle = null;
+    let activeFileHandle = null;
+    let autoSaveTimer = null;
+
+    const btnPickFolder = document.getElementById('btnPickFolder');
+    const folderTitle = document.getElementById('folderTitle');
+    const treeView = document.getElementById('treeView');
+    const fileName = document.getElementById('fileName');
+    const statusPill = document.getElementById('statusPill');
+    const btnSave = document.getElementById('btnSave');
+    const emptyView = document.getElementById('emptyView');
+    const memoArea = document.getElementById('memoArea');
+    const statChars = document.getElementById('statChars');
+    const saveNotice = document.getElementById('saveNotice');
+    const btnNewFile = document.getElementById('btnNewFile');
+    const btnNewFolder = document.getElementById('btnNewFolder');
+
+    btnPickFolder.onclick = async () => {
+      try {
+        rootHandle = await window.showDirectoryPicker();
+        folderTitle.textContent = `📁 ${rootHandle.name}`;
+        await refreshTree();
+      } catch (e) {
+        if (e.name !== 'AbortError') alert('폴더를 열 수 없습니다: ' + e.message);
+      }
+    };
+
+    async function scanDir(dirHandle) {
+      const items = [];
+      for await (const entry of dirHandle.values()) {
+        if (entry.name.startsWith('.')) continue;
+        const item = { name: entry.name, kind: entry.kind, handle: entry, children: [] };
+        if (entry.kind === 'directory') {
+          item.children = await scanDir(entry);
+        }
+        items.push(item);
+      }
+      return items.sort((a, b) => {
+        if (a.kind === 'directory' && b.kind !== 'directory') return -1;
+        if (a.kind !== 'directory' && b.kind === 'directory') return 1;
+        return a.name.localeCompare(b.name);
+      });
+    }
+
+    async function refreshTree() {
+      if (!rootHandle) return;
+      const items = await scanDir(rootHandle);
+      treeView.innerHTML = '';
+      renderNodes(items, treeView);
+    }
+
+    function renderNodes(items, container) {
+      items.forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'tree-item';
+        row.innerHTML = `<span class="tree-icon">${item.kind === 'directory' ? '📁' : '📝'}</span><span class="tree-name">${item.name}</span>`;
+
+        if (item.kind === 'directory') {
+          container.appendChild(row);
+          const childrenDiv = document.createElement('div');
+          childrenDiv.className = 'tree-children';
+          renderNodes(item.children, childrenDiv);
+          container.appendChild(childrenDiv);
+
+          row.onclick = () => childrenDiv.classList.toggle('hidden');
+        } else {
+          container.appendChild(row);
+          row.onclick = () => openFile(item.handle, row);
+        }
+      });
+    }
+
+    async function openFile(fileHandle, rowEl) {
+      activeFileHandle = fileHandle;
+      const file = await fileHandle.getFile();
+      const text = await file.text();
+
+      document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('active'));
+      if (rowEl) rowEl.classList.add('active');
+
+      fileName.textContent = fileHandle.name;
+      memoArea.value = text;
+      emptyView.classList.add('hidden');
+      memoArea.classList.remove('hidden');
+      btnSave.disabled = false;
+      updateStatus('saved');
+      updateStats();
+    }
+
+    async function saveFile() {
+      if (!activeFileHandle) return;
+      updateStatus('saving');
+      try {
+        const writable = await activeFileHandle.createWritable();
+        await writable.write(memoArea.value);
+        await writable.close();
+        updateStatus('saved');
+        saveNotice.textContent = `저장됨: ${new Date().toLocaleTimeString()}`;
+      } catch (e) {
+        alert('저장 실패: ' + e.message);
+      }
+    }
+
+    function updateStatus(status) {
+      statusPill.className = 'status-pill ' + status;
+      statusPill.textContent = status === 'saved' ? '💾 저장됨' : '✏️ 저장 중...';
+    }
+
+    function updateStats() {
+      const len = memoArea.value.length;
+      const words = memoArea.value.trim() ? memoArea.value.trim().split(/\s+/).length : 0;
+      statChars.textContent = `${len} 글자 | ${words} 단어`;
+    }
+
+    memoArea.oninput = () => {
+      updateStatus('saving');
+      updateStats();
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(saveFile, 500);
+    };
+
+    btnSave.onclick = saveFile;
+
+    btnNewFile.onclick = async () => {
+      if (!rootHandle) return alert('먼저 [폴더 열기]를 눌러 폴더를 선택하세요.');
+      let name = prompt('새 메모 파일 이름 (예: 메모.md):');
+      if (!name) return;
+      if (!name.endsWith('.md') && !name.endsWith('.txt')) name += '.md';
+      try {
+        const handle = await rootHandle.getFileHandle(name, { create: true });
+        const w = await handle.createWritable();
+        await w.write(`# ${name.replace(/\.[^/.]+$/, "")}\n\n`);
+        await w.close();
+        await refreshTree();
+        await openFile(handle);
+      } catch (e) { alert(e.message); }
+    };
+
+    btnNewFolder.onclick = async () => {
+      if (!rootHandle) return alert('먼저 [폴더 열기]를 눌러 폴더를 선택하세요.');
+      const name = prompt('새 폴더 이름:');
+      if (!name) return;
+      try {
+        await rootHandle.getDirectoryHandle(name, { create: true });
+        await refreshTree();
+      } catch (e) { alert(e.message); }
+    };
+
+    window.onkeydown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        saveFile();
+      }
+    };
+  </script>
+</body>
+</html>
