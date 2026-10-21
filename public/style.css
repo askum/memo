@@ -240,24 +240,72 @@ body, html {
 .tree-item {
   display: flex;
   align-items: center;
-  padding: 5px 8px;
+  padding: 6px 8px 6px 7px;
   border-radius: 6px;
   cursor: pointer;
   font-size: 13px;
   color: var(--text-primary);
-  transition: background-color 0.1s;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   position: relative;
   user-select: none;
+  border-left: 3px solid transparent;
 }
 
 .tree-item:hover {
   background-color: var(--bg-hover);
 }
 
+/* 1. Currently Opened Memo (열려 있는 메모): Blue Highlight */
 .tree-item.active {
-  background-color: var(--bg-active);
+  background-color: #e0e7ff;
   font-weight: 600;
-  color: var(--accent-primary);
+  color: #1d4ed8;
+  border-left-color: #3b82f6;
+}
+
+.tree-item.active .tree-item-icon {
+  transform: scale(1.1);
+}
+
+/* 2. Currently Editing / Unsaved Memo (편집/작성 중인 메모): Warm Amber/Orange Highlight */
+.tree-item.active.editing {
+  background-color: #fef3c7;
+  color: #b45309;
+  border-left-color: #f59e0b;
+}
+
+.tree-item.active.editing .tree-item-label {
+  color: #b45309;
+}
+
+/* Unsaved Dot in Left Tree */
+.tree-unsaved-dot {
+  color: #f59e0b;
+  font-size: 9px;
+  margin-left: 4px;
+  display: inline-block;
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+@media (prefers-color-scheme: dark) {
+  .tree-item.active {
+    background-color: #1e293b;
+    color: #93c5fd;
+    border-left-color: #3b82f6;
+  }
+  .tree-item.active.editing {
+    background-color: #3f2205;
+    color: #fde047;
+    border-left-color: #f59e0b;
+  }
+  .tree-item.active.editing .tree-item-label {
+    color: #fde047;
+  }
 }
 
 .tree-item-chevron {

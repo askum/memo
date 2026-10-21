@@ -123,6 +123,26 @@ function renderTree(items, containerElement) {
     const node = createTreeNode(item);
     containerElement.appendChild(node);
   });
+  updateTreeActiveState();
+}
+
+// Highlight currently opened & editing memo in the left tree
+function updateTreeActiveState() {
+  const normCurrent = state.currentFilePath ? state.currentFilePath.replace(/\\/g, '/') : null;
+  document.querySelectorAll('.tree-item').forEach(el => {
+    const rawPath = el.getAttribute('data-path');
+    const normPath = rawPath ? rawPath.replace(/\\/g, '/') : null;
+    if (normCurrent && normPath === normCurrent) {
+      el.classList.add('active');
+      if (state.isDirty) {
+        el.classList.add('editing');
+      } else {
+        el.classList.remove('editing');
+      }
+    } else {
+      el.classList.remove('active', 'editing');
+    }
+  });
 }
 
 function createTreeNode(item) {
@@ -131,8 +151,15 @@ function createTreeNode(item) {
 
   const row = document.createElement('div');
   row.className = 'tree-item';
-  if (state.currentFilePath === item.path) {
+  row.setAttribute('data-path', item.path);
+
+  const normCurrent = state.currentFilePath ? state.currentFilePath.replace(/\\/g, '/') : null;
+  const normItem = item.path ? item.path.replace(/\\/g, '/') : null;
+  if (normCurrent && normCurrent === normItem) {
     row.classList.add('active');
+    if (state.isDirty) {
+      row.classList.add('editing');
+    }
   }
 
   // Chevron (for folders)
@@ -296,15 +323,8 @@ async function loadFile(filePath, isNavigatingHistory = false) {
     updateStats();
     updateCursorPos();
 
-    // Re-highlight active tree node
-    document.querySelectorAll('.tree-item').forEach(el => {
-      const label = el.querySelector('.tree-item-label');
-      if (label && label.textContent === fileName) {
-        el.classList.add('active');
-      } else {
-        el.classList.remove('active');
-      }
-    });
+    // Highlight active tree node
+    updateTreeActiveState();
 
     // Mark config
     fetch('/api/config', {
@@ -455,17 +475,21 @@ function updateUnsavedIndicators(isUnsaved) {
     fileTitle.textContent = cleanName;
   }
 
-  // 2. Left Tree Dot
+  // 2. Left Tree Active/Editing Highlight & Dot
+  updateTreeActiveState();
+
+  const normCurrent = state.currentFilePath.replace(/\\/g, '/');
   document.querySelectorAll('.tree-item-label').forEach(label => {
-    const labelPath = label.getAttribute('data-path');
-    if (labelPath === state.currentFilePath) {
+    const rawPath = label.getAttribute('data-path') || '';
+    const normPath = rawPath.replace(/\\/g, '/');
+    if (normPath === normCurrent) {
       let dot = label.querySelector('.tree-unsaved-dot');
       if (isUnsaved) {
         if (!dot) {
           dot = document.createElement('span');
           dot.className = 'tree-unsaved-dot';
           dot.textContent = ' ●';
-          dot.title = '저장되지 않은 변경사항 있음';
+          dot.title = '수정 중 (저장되지 않은 변경사항)';
           label.appendChild(dot);
         }
       } else {
