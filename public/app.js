@@ -7,6 +7,7 @@ let state = {
   treeData: [],
   selectedNodePath: null,
   saveTimeout: null,
+  maxSaveTimeout: null,
   isDirty: false
 };
 
@@ -302,6 +303,10 @@ async function saveCurrentFile(showNotification = true) {
     clearTimeout(state.saveTimeout);
     state.saveTimeout = null;
   }
+  if (state.maxSaveTimeout) {
+    clearTimeout(state.maxSaveTimeout);
+    state.maxSaveTimeout = null;
+  }
 
   const content = memoTextarea.value;
   updateSaveStatus('saving');
@@ -315,8 +320,9 @@ async function saveCurrentFile(showNotification = true) {
 
     if (!res.ok) throw new Error('저장 실패');
     state.isDirty = false;
-    updateSaveStatus('saved');
-    lastSavedTime.textContent = `저장됨: ${new Date().toLocaleTimeString()}`;
+    const nowTime = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    updateSaveStatus('saved', nowTime);
+    lastSavedTime.textContent = `마지막 저장: ${nowTime}`;
   } catch (err) {
     console.error('Save error:', err);
     updateSaveStatus('error');
@@ -324,12 +330,15 @@ async function saveCurrentFile(showNotification = true) {
   }
 }
 
-function updateSaveStatus(status) {
+function updateSaveStatus(status, detail = '') {
   saveStatusBadge.className = 'status-badge ' + status;
   if (status === 'saved') {
-    saveStatusBadge.textContent = '💾 저장됨';
+    const timeStr = detail || new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    saveStatusBadge.textContent = `💾 저장됨 (${timeStr})`;
   } else if (status === 'saving') {
-    saveStatusBadge.textContent = '✏️ 저장 중...';
+    saveStatusBadge.textContent = '⏳ 저장 중...';
+  } else if (status === 'editing') {
+    saveStatusBadge.textContent = '✏️ 작성 중...';
   } else if (status === 'error') {
     saveStatusBadge.textContent = '❌ 저장 실패';
   }
@@ -659,17 +668,28 @@ function setupEventListeners() {
   btnInsertLink.onclick = openLinkSelectorModal;
   btnLinkModalCancel.onclick = () => linkModalOverlay.classList.add('hidden');
 
-  // Auto-Save Debounce
+  // Auto-Save: Debounce (1s idle) + Max Interval (3s continuous)
   memoTextarea.addEventListener('input', () => {
     state.isDirty = true;
-    updateSaveStatus('saving');
+    updateSaveStatus('editing');
     updateStats();
     updateCursorPos();
 
+    // 1. Save 1 second after user pauses typing
     if (state.saveTimeout) clearTimeout(state.saveTimeout);
     state.saveTimeout = setTimeout(() => {
       saveCurrentFile(false);
-    }, 500);
+    }, 1000);
+
+    // 2. Even if user types continuously without pausing, save at least every 3 seconds
+    if (!state.maxSaveTimeout) {
+      state.maxSaveTimeout = setTimeout(() => {
+        state.maxSaveTimeout = null;
+        if (state.isDirty) {
+          saveCurrentFile(false);
+        }
+      }, 3000);
+    }
   });
 
   // Click & Double-Click to open link directly in textarea

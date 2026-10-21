@@ -453,8 +453,12 @@ body, html {
   color: var(--status-saved);
 }
 
+.status-badge.editing {
+  color: #f59e0b;
+}
+
 .status-badge.saving {
-  color: var(--status-saving);
+  color: var(--accent-primary);
 }
 
 .status-badge.error {
