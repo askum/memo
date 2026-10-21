@@ -308,25 +308,10 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-// Auto open in Standalone App Window Mode (No browser address bar or tabs)
+// Auto open browser
 function openBrowser(url) {
-  if (process.platform === 'darwin') {
-    // On Mac: Launch in dedicated Chrome App Window if Chrome exists, otherwise default browser
-    exec(`open -na "Google Chrome" --args --app="${url}"`, (err) => {
-      if (err) exec(`open "${url}"`);
-    });
-  } else if (process.platform === 'win32') {
-    // On Windows: Launch in dedicated Edge/Chrome App Window (Edge is built into Windows 10 & 11)
-    exec(`start msedge --app="${url}"`, (err) => {
-      if (err) {
-        exec(`start chrome --app="${url}"`, (err2) => {
-          if (err2) exec(`start "${url}"`);
-        });
-      }
-    });
-  } else {
-    exec(`google-chrome --app="${url}" || xdg-open "${url}"`);
-  }
+  const start = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+  exec(`${start} ${url}`);
 }
 
 // Start server
