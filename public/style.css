@@ -443,26 +443,54 @@ body, html {
 
 .status-badge {
   font-size: 12px;
-  font-weight: 500;
-  display: flex;
+  font-weight: 600;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
 }
 
 .status-badge.saved {
   color: var(--status-saved);
+  background-color: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.2);
 }
 
-.status-badge.editing {
-  color: #f59e0b;
+.status-badge.editing, .status-badge.unsaved {
+  color: #d97706;
+  background-color: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+  cursor: pointer;
 }
 
 .status-badge.saving {
   color: var(--accent-primary);
+  background-color: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.25);
 }
 
 .status-badge.error {
-  color: var(--status-error);
+  color: #dc2626;
+  background-color: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  cursor: pointer;
+}
+
+.unsaved-dot {
+  color: #f59e0b;
+  font-size: 13px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.tree-unsaved-dot {
+  color: #f59e0b;
+  font-weight: 700;
+  font-size: 11px;
+  margin-left: 4px;
 }
 
 /* Editor Body */

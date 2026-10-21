@@ -145,9 +145,12 @@ function createTreeNode(item) {
   row.appendChild(icon);
 
   // Label (without extension)
+  const cleanLabelName = getDisplayName(item.name, item.isDir);
   const label = document.createElement('span');
   label.className = 'tree-item-label';
-  label.textContent = getDisplayName(item.name, item.isDir);
+  label.textContent = cleanLabelName;
+  label.setAttribute('data-path', item.path);
+  label.setAttribute('data-raw-name', cleanLabelName);
   row.appendChild(label);
 
   // Hover Actions
@@ -325,7 +328,7 @@ async function saveCurrentFile(showNotification = true) {
     lastSavedTime.textContent = `마지막 저장: ${nowTime}`;
   } catch (err) {
     console.error('Save error:', err);
-    updateSaveStatus('error');
+    updateSaveStatus('error', err.message);
     if (showNotification) alert('저장 실패: ' + err.message);
   }
 }
@@ -335,13 +338,64 @@ function updateSaveStatus(status, detail = '') {
   if (status === 'saved') {
     const timeStr = detail || new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     saveStatusBadge.textContent = `💾 저장됨 (${timeStr})`;
+    saveStatusBadge.title = `안전하게 저장되었습니다 (${timeStr})`;
+    saveStatusBadge.onclick = null;
+    updateUnsavedIndicators(false);
   } else if (status === 'saving') {
     saveStatusBadge.textContent = '⏳ 저장 중...';
-  } else if (status === 'editing') {
-    saveStatusBadge.textContent = '✏️ 작성 중...';
+    saveStatusBadge.title = '서버에 저장하고 있습니다';
+    saveStatusBadge.onclick = null;
+  } else if (status === 'editing' || status === 'unsaved') {
+    saveStatusBadge.textContent = '⚠️ 저장 안 됨 (수정 중)';
+    saveStatusBadge.title = '아직 저장되지 않은 내용이 있습니다. 1초 후 자동 저장되거나 클릭하여 즉시 저장합니다.';
+    saveStatusBadge.onclick = () => saveCurrentFile(true);
+    updateUnsavedIndicators(true);
   } else if (status === 'error') {
-    saveStatusBadge.textContent = '❌ 저장 실패';
+    saveStatusBadge.textContent = '❌ 저장 실패 (클릭하여 재시도)';
+    saveStatusBadge.title = detail ? `저장 실패 원인: ${detail}. 클릭하여 다시 시도하세요.` : '저장에 실패했습니다. 클릭하여 다시 시도하세요.';
+    saveStatusBadge.onclick = () => saveCurrentFile(true);
+    updateUnsavedIndicators(true);
   }
+}
+
+// Visual indicators for unsaved state: ● dot in header title & left tree
+function updateUnsavedIndicators(isUnsaved) {
+  if (!state.currentFilePath) return;
+
+  const fileName = state.currentFilePath.split(/[\\/]/).pop();
+  const cleanName = getDisplayName(fileName, false);
+
+  // 1. Header Title Dot
+  if (isUnsaved) {
+    fileTitle.innerHTML = `${escapeHtml(cleanName)} <span class="unsaved-dot" title="저장되지 않음">●</span>`;
+  } else {
+    fileTitle.textContent = cleanName;
+  }
+
+  // 2. Left Tree Dot
+  document.querySelectorAll('.tree-item-label').forEach(label => {
+    const labelPath = label.getAttribute('data-path');
+    if (labelPath === state.currentFilePath) {
+      let dot = label.querySelector('.tree-unsaved-dot');
+      if (isUnsaved) {
+        if (!dot) {
+          dot = document.createElement('span');
+          dot.className = 'tree-unsaved-dot';
+          dot.textContent = ' ●';
+          dot.title = '저장되지 않은 변경사항 있음';
+          label.appendChild(dot);
+        }
+      } else {
+        if (dot) dot.remove();
+      }
+    } else {
+      const otherDot = label.querySelector('.tree-unsaved-dot');
+      if (otherDot) otherDot.remove();
+    }
+  });
+
+  // 3. Manual Save Button
+  btnManualSave.disabled = !isUnsaved && !state.isDirty;
 }
 
 // --- Memo Link Interlinking & Preview Features ---
