@@ -61,6 +61,7 @@ async function init() {
   setupSplitter();
   setupKeyboardShortcuts();
   setupEventListeners();
+  startHeartbeat();
 
   try {
     const configRes = await fetch('/api/config');
@@ -217,15 +218,39 @@ function createTreeNode(item) {
 
 // Load File into Editor
 async function loadFile(filePath) {
-  if (state.isDirty && state.currentFilePath) {
-    await saveCurrentFile(false);
+  if (!filePath) return;
+
+  // Don't reload if already open and clean
+  if (state.currentFilePath === filePath && !state.isDirty) {
+    return;
   }
 
+  // Auto-save existing file if dirty before loading new one
+  if (state.isDirty && state.currentFilePath) {
+    try {
+      await saveCurrentFile(false);
+    } catch (e) {
+      console.warn('Auto-save prior to load failed:', e);
+    }
+  }
+
+  // 1. Fetch file content from server
+  let fileData = null;
   try {
     const res = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
-    if (!res.ok) throw new Error('파일을 읽을 수 없습니다.');
-    const data = await res.json();
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.error || '파일을 읽을 수 없습니다.');
+    }
+    fileData = await res.json();
+  } catch (err) {
+    console.error('Error fetching file:', err);
+    alert('파일을 불러오지 못했습니다: ' + err.message);
+    return;
+  }
 
+  // 2. Safely update UI with loaded content
+  try {
     state.currentFilePath = filePath;
     state.isDirty = false;
 
@@ -239,28 +264,35 @@ async function loadFile(filePath) {
     emptyState.classList.add('hidden');
     memoTextarea.classList.remove('hidden');
     memoPreview.classList.add('hidden');
-    setMode('edit');
 
-    memoTextarea.value = data.content || '';
+    memoTextarea.value = fileData.content || '';
     btnManualSave.disabled = false;
     btnInsertLink.disabled = false;
 
+    setMode('edit');
     updateSaveStatus('saved');
     updateStats();
     updateCursorPos();
     updateLinkedMemosBar();
 
     // Re-highlight active tree node
-    document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tree-item').forEach(el => {
+      const label = el.querySelector('.tree-item-label');
+      if (label && label.textContent === fileName) {
+        el.classList.add('active');
+      } else {
+        el.classList.remove('active');
+      }
+    });
+
     // Mark config
     fetch('/api/config', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lastOpenedFile: filePath })
-    });
-  } catch (err) {
-    console.error('Error loading file:', err);
-    alert('파일을 불러오지 못했습니다: ' + err.message);
+    }).catch(() => {});
+  } catch (uiErr) {
+    console.error('UI update error after file load:', uiErr);
   }
 }
 
@@ -852,6 +884,29 @@ function setupKeyboardShortcuts() {
       handleChangeFolder();
     }
   });
+}
+
+// Heartbeat & Auto-shutdown client
+function startHeartbeat() {
+  function ping() {
+    fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
+  }
+  ping();
+  setInterval(ping, 2000);
+
+  // Send shutdown beacon when window closes
+  const sendShutdown = () => {
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/shutdown');
+      } else {
+        fetch('/api/shutdown', { method: 'POST', keepalive: true }).catch(() => {});
+      }
+    } catch (e) {}
+  };
+
+  window.addEventListener('beforeunload', sendShutdown);
+  window.addEventListener('pagehide', sendShutdown);
 }
 
 // Launch

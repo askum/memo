@@ -16,6 +16,31 @@ const DEFAULT_MEMOS_DIR = path.join(__dirname, 'memos');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(DEFAULT_MEMOS_DIR)) fs.mkdirSync(DEFAULT_MEMOS_DIR, { recursive: true });
 
+// Heartbeat & Auto-Shutdown tracking
+let lastHeartbeat = Date.now();
+let hasClientEverConnected = false;
+let shutdownTimeout = null;
+
+// Watchdog: check every 2 seconds
+// If client connected at least once and no heartbeat for 5 seconds, exit cleanly
+setInterval(() => {
+  if (hasClientEverConnected && (Date.now() - lastHeartbeat > 5000)) {
+    console.log('\n[INFO] 메모 창이 닫혀 프로그램을 안전하게 종료합니다.');
+    process.exit(0);
+  }
+}, 2000);
+
+// Helper to resolve file path handling Unicode NFC/NFD on macOS
+function resolveFilePath(rawPath) {
+  if (!rawPath) return null;
+  if (fs.existsSync(rawPath)) return rawPath;
+  const nfc = rawPath.normalize('NFC');
+  if (fs.existsSync(nfc)) return nfc;
+  const nfd = rawPath.normalize('NFD');
+  if (fs.existsSync(nfd)) return nfd;
+  return null;
+}
+
 // Ensure initial seed files
 function ensureSeedFiles(folder) {
   if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
@@ -177,6 +202,28 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
+    // API: Heartbeat
+    if (pathname === '/api/heartbeat' && req.method === 'POST') {
+      hasClientEverConnected = true;
+      lastHeartbeat = Date.now();
+      if (shutdownTimeout) {
+        clearTimeout(shutdownTimeout);
+        shutdownTimeout = null;
+      }
+      return sendJSON(res, 200, { ok: true });
+    }
+
+    // API: Shutdown Beacon on Window Close
+    if (pathname === '/api/shutdown' && req.method === 'POST') {
+      console.log('[INFO] 브라우저 창 닫힘 신호 수신. 잠시 후 종료합니다.');
+      if (shutdownTimeout) clearTimeout(shutdownTimeout);
+      shutdownTimeout = setTimeout(() => {
+        console.log('[INFO] 프로그램을 종료합니다.');
+        process.exit(0);
+      }, 1500);
+      return sendJSON(res, 200, { ok: true });
+    }
+
     // API: Get Config
     if (pathname === '/api/config' && req.method === 'GET') {
       const cfg = getConfig();
@@ -226,12 +273,17 @@ const server = http.createServer(async (req, res) => {
 
     // API: Get File Content
     if (pathname === '/api/file' && req.method === 'GET') {
-      const filePath = parsedUrl.searchParams.get('path');
-      if (!filePath || !fs.existsSync(filePath)) {
-        return sendJSON(res, 404, { error: 'File not found' });
+      const rawPath = parsedUrl.searchParams.get('path');
+      const resolved = resolveFilePath(rawPath);
+      if (!resolved || !fs.existsSync(resolved)) {
+        return sendJSON(res, 404, { error: '파일을 찾을 수 없습니다.' });
       }
-      const content = fs.readFileSync(filePath, 'utf-8');
-      return sendJSON(res, 200, { path: filePath, content });
+      const stat = fs.statSync(resolved);
+      if (stat.isDirectory()) {
+        return sendJSON(res, 400, { error: '폴더는 직접 열 수 없습니다.' });
+      }
+      const content = fs.readFileSync(resolved, 'utf-8');
+      return sendJSON(res, 200, { path: resolved, content });
     }
 
     // API: Save File Content
