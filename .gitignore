@@ -10,6 +10,11 @@ ENV/
 data/*.db
 data/*.sqlite3
 
+# PyInstaller
+build/
+dist/
+*.spec
+
 # OS
 .DS_Store
 Thumbs.db

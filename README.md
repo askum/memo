@@ -31,37 +31,26 @@ Python과 **CustomTkinter**를 기반으로 제작된 가볍고 세련된 3분�
 
 ---
 
-## 🚀 실행 방법
+## 🚀 파일 더블 클릭으로 바로 실행하기 (터미널/쉘 불필요)
 
-### 🍎 macOS / Linux
-터미널에서 아래 명령어를 실행하면 가상환경 구성 및 패키지 설치 후 바로 실행됩니다:
-```bash
-./run.sh
-```
+터미널이나 명령어를 직접 입력할 필요 없이 **마우스 더블 클릭**만으로 바로 실행할 수 있습니다:
 
-### 🪟 Windows
-1. **배치 파일 더블 클릭 (추천)**:
-   - 탐색기에서 [`run.bat`](file:///Users/askum/workspace_gemini/memo/run.bat) 파일을 더블 클릭하거나 명령 프롬프트(CMD)에서 실행:
-   ```cmd
-   run.bat
-   ```
-2. **수동 실행**:
-   ```cmd
-   python -m venv .venv
-   .venv\Scripts\activate
-   pip install -r requirements.txt
-   python main.py
-   ```
+### 🍎 Mac에서 바로 실행
+1. **[`dist/MyMemo.app`](file:///Users/askum/workspace_gemini/memo/dist/MyMemo.app) 더블 클릭** (가장 추천)
+   - 맥 전용 정식 앱 파일입니다. 데스크톱이나 `/Applications`(응용 프로그램) 폴더로 옮겨 두고 일반 Mac 앱처럼 실행할 수 있습니다.
+2. **[`MyMemo.command`](file:///Users/askum/workspace_gemini/memo/MyMemo.command) 더블 클릭**
+   - 파인더(Finder)에서 바로 더블 클릭하여 실행할 수 있는 실행 파일입니다.
 
 ---
 
-## 📦 Windows용 실행 파일(.exe) 만들기 (선택 사항)
-파이썬이 설치되지 않은 윈도우 PC에서도 실행할 수 있도록 단일 실행 파일(`.exe`)로 만들 수 있습니다:
-```cmd
-pip install pyinstaller
-pyinstaller --noconsole --onefile main.py -n "MyMemo"
-```
-빌드가 완료되면 `dist/MyMemo.exe` 파일이 생성됩니다.
+### 🪟 Windows에서 바로 실행
+1. **[`MyMemo.vbs`](file:///Users/askum/workspace_gemini/memo/MyMemo.vbs) 더블 클릭** (추천)
+   - 검은색 CMD 창 없이 바로 깔끔하게 메모 앱 창만 뜹니다.
+2. **[`run.bat`](file:///Users/askum/workspace_gemini/memo/run.bat) 더블 클릭**
+   - 가상환경 및 패키지가 없을 때 자동으로 세팅해주며 실행됩니다.
+3. **단독 실행 파일 (`MyMemo.exe`) 만들기**
+   - [`build_exe.bat`](file:///Users/askum/workspace_gemini/memo/build_exe.bat)을 더블 클릭하면 `dist\MyMemo.exe`가 생성됩니다.
+   - 이 `.exe` 파일은 파이썬이 설치되지 않은 다른 윈도우 컴퓨터에 보내서 바로 실행할 수 있습니다.
 
 ---
 
