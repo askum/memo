@@ -68,7 +68,10 @@ function ensureSeedFiles(folder) {
 function getConfig() {
   if (fs.existsSync(CONFIG_FILE)) {
     try {
-      return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+      const cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
+      if (cfg.rootFolder && fs.existsSync(cfg.rootFolder)) {
+        return cfg;
+      }
     } catch (e) {}
   }
   return { rootFolder: DEFAULT_MEMOS_DIR, lastOpenedFile: '' };
