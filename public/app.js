@@ -363,21 +363,46 @@ function getAllMemoFiles(items, result = []) {
 // Find memo path by filename (with or without extension) or relative path
 function findMemoPath(target) {
   const allFiles = getAllMemoFiles(state.treeData);
-  const cleanTarget = target.trim().replace(/^\[\[/, '').replace(/\]\]$/, '');
+  const cleanTarget = target.trim().replace(/^\[\[/, '').replace(/\]\]$/, '').replace(/\\/g, '/');
   const targetLower = cleanTarget.toLowerCase();
-  const targetWithoutExt = targetLower.replace(/\.(md|txt)$/, '');
+  const targetNorm = targetLower.replace(/\.(txt|md|markdown)$/i, '');
 
-  // 1. Exact path match
-  const matchPath = allFiles.find(f => f.path.toLowerCase().endsWith(targetLower));
-  if (matchPath) return matchPath.path;
+  // 1. If path contains slash (e.g. "업무/회의록" or "업무/회의록.txt")
+  if (cleanTarget.includes('/')) {
+    const match = allFiles.find(f => {
+      const fNorm = f.path.replace(/\\/g, '/').toLowerCase().replace(/\.(txt|md|markdown)$/i, '');
+      return fNorm.endsWith('/' + targetNorm) || fNorm === targetNorm;
+    });
+    if (match) return match.path;
+  }
 
-  // 2. Exact file name match (e.g. '회의록.md')
-  const matchName = allFiles.find(f => f.name.toLowerCase() === targetLower);
-  if (matchName) return matchName.path;
+  // 2. Only file name given (e.g. "회의록")
+  // Priority A: Same folder as current file
+  if (state.currentFilePath) {
+    const currentDir = state.currentFilePath.replace(/\\/g, '/').split('/').slice(0, -1).join('/');
+    const sameFolderMatch = allFiles.find(f => {
+      const fDir = f.path.replace(/\\/g, '/').split('/').slice(0, -1).join('/');
+      const fNameNorm = f.name.toLowerCase().replace(/\.(txt|md|markdown)$/i, '');
+      return fDir === currentDir && fNameNorm === targetNorm;
+    });
+    if (sameFolderMatch) return sameFolderMatch.path;
+  }
 
-  // 3. Name without extension match (e.g. '회의록' -> '회의록.md')
-  const matchNoExt = allFiles.find(f => f.name.toLowerCase().replace(/\.(md|txt)$/, '') === targetWithoutExt);
-  if (matchNoExt) return matchNoExt.path;
+  // Priority B: Root folder
+  const rootDirNorm = state.rootFolder.replace(/\\/g, '/');
+  const rootMatch = allFiles.find(f => {
+    const fDir = f.path.replace(/\\/g, '/').split('/').slice(0, -1).join('/');
+    const fNameNorm = f.name.toLowerCase().replace(/\.(txt|md|markdown)$/i, '');
+    return fDir === rootDirNorm && fNameNorm === targetNorm;
+  });
+  if (rootMatch) return rootMatch.path;
+
+  // Priority C: First matching file in tree
+  const firstMatch = allFiles.find(f => {
+    const fNameNorm = f.name.toLowerCase().replace(/\.(txt|md|markdown)$/i, '');
+    return fNameNorm === targetNorm;
+  });
+  if (firstMatch) return firstMatch.path;
 
   return null;
 }
@@ -433,11 +458,20 @@ function renderLinkItems(files) {
     return;
   }
 
+  // Count duplicate names to automatically qualify with folder path if needed
+  const nameCounts = {};
+  files.forEach(f => {
+    const c = getDisplayName(f.name, false);
+    nameCounts[c] = (nameCounts[c] || 0) + 1;
+  });
+
   files.forEach(file => {
     const row = document.createElement('div');
     row.className = 'link-item-row';
     const cleanName = getDisplayName(file.name, false);
     const relPath = getDisplayName(file.path.replace(state.rootFolder, '').replace(/^[\\/]/, ''), false);
+    const hasDuplicate = nameCounts[cleanName] > 1;
+    const linkToInsert = hasDuplicate ? relPath : cleanName;
 
     row.innerHTML = `
       <span style="font-size: 14px;">📝</span>
@@ -446,7 +480,7 @@ function renderLinkItems(files) {
     `;
 
     row.onclick = () => {
-      insertLinkIntoTextarea(`[[${cleanName}]]`);
+      insertLinkIntoTextarea(`[[${linkToInsert}]]`);
       linkModalOverlay.classList.add('hidden');
     };
 
