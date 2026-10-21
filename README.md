@@ -26,12 +26,20 @@
 
 ## 🚀 실행 방법 (마우스 더블 클릭)
 
-### 방법 1. 로컬 앱 실행 (가장 추천)
-- **🍎 Mac**: 파인더에서 **[`MyMemo.command`](file:///Users/askum/workspace_gemini/memo/MyMemo.command)** 더블 클릭
-- **🪟 Windows**: 탐색기에서 **`MyMemo.bat`** 더블 클릭
-- *(터미널에서 직접 실행할 경우: `node server.js` 또는 `./run.sh`)*
+### 🍎 Mac에서 실행
+1. **[`MyMemo.app`](file:///Users/askum/workspace_gemini/memo/MyMemo.app) 더블 클릭 (가장 추천)**
+   - **터미널 창이 아예 뜨지 않고** 카카오톡이나 메모장처럼 깔끔하게 프로그램 창만 바로 열립니다.
+   - 프로그램을 닫으면 백그라운드 서버도 함께 완전히 꺼집니다.
+2. **[`MyMemo.command`](file:///Users/askum/workspace_gemini/memo/MyMemo.command) 더블 클릭**
+   - 프로그램을 닫으면 터미널 창도 자동으로 함께 닫힙니다.
 
-실행 즉시 로컬 서버가 시작되고 기본 브라우저에 데스크톱 메모 화면이 바로 나타납니다.
+---
+
+### 🪟 Windows에서 실행
+1. **`MyMemo.vbs` 더블 클릭 (추천)**:
+   - 검은색 CMD 창 없이 바로 프로그램 창만 뜹니다.
+2. **`MyMemo.bat` 더블 클릭**:
+   - 프로그램 종료 시 실행 창도 자동으로 닫힙니다.
 
 ---
 
