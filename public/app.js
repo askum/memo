@@ -7,7 +7,8 @@ let state = {
   treeData: [],
   selectedNodePath: null,
   saveTimeout: null,
-  isDirty: false
+  isDirty: false,
+  viewMode: 'edit' // 'edit' or 'preview'
 };
 
 // DOM Elements
@@ -26,8 +27,14 @@ const fileTitle = document.getElementById('fileTitle');
 const filePathDisplay = document.getElementById('filePathDisplay');
 const saveStatusBadge = document.getElementById('saveStatusBadge');
 const btnManualSave = document.getElementById('btnManualSave');
+const btnInsertLink = document.getElementById('btnInsertLink');
+const btnModeEdit = document.getElementById('btnModeEdit');
+const btnModePreview = document.getElementById('btnModePreview');
+const linkedMemosBar = document.getElementById('linkedMemosBar');
+const linkedPills = document.getElementById('linkedPills');
 const emptyState = document.getElementById('emptyState');
 const memoTextarea = document.getElementById('memoTextarea');
+const memoPreview = document.getElementById('memoPreview');
 
 const charCount = document.getElementById('charCount');
 const wordCount = document.getElementById('wordCount');
@@ -42,6 +49,12 @@ const modalInput = document.getElementById('modalInput');
 const btnModalCancel = document.getElementById('btnModalCancel');
 const btnModalConfirm = document.getElementById('btnModalConfirm');
 let modalCallback = null;
+
+// Link Modal Elements
+const linkModalOverlay = document.getElementById('linkModalOverlay');
+const linkSearchInput = document.getElementById('linkSearchInput');
+const linkItemsList = document.getElementById('linkItemsList');
+const btnLinkModalCancel = document.getElementById('btnLinkModalCancel');
 
 // Init Application
 async function init() {
@@ -225,12 +238,17 @@ async function loadFile(filePath) {
     // Show Editor
     emptyState.classList.add('hidden');
     memoTextarea.classList.remove('hidden');
+    memoPreview.classList.add('hidden');
+    setMode('edit');
+
     memoTextarea.value = data.content || '';
     btnManualSave.disabled = false;
+    btnInsertLink.disabled = false;
 
     updateSaveStatus('saved');
     updateStats();
     updateCursorPos();
+    updateLinkedMemosBar();
 
     // Re-highlight active tree node
     document.querySelectorAll('.tree-item').forEach(el => el.classList.remove('active'));
@@ -287,11 +305,242 @@ function updateSaveStatus(status) {
   }
 }
 
-function updateStats() {
+// --- Memo Link Interlinking & Preview Features ---
+
+// Recursively get all memo files in tree
+function getAllMemoFiles(items, result = []) {
+  if (!items) return result;
+  items.forEach(item => {
+    if (!item.isDir) {
+      result.push({ name: item.name, path: item.path });
+    }
+    if (item.children) {
+      getAllMemoFiles(item.children, result);
+    }
+  });
+  return result;
+}
+
+// Find memo path by filename (with or without extension) or relative path
+function findMemoPath(target) {
+  const allFiles = getAllMemoFiles(state.treeData);
+  const cleanTarget = target.trim().replace(/^\[\[/, '').replace(/\]\]$/, '');
+  const targetLower = cleanTarget.toLowerCase();
+  const targetWithoutExt = targetLower.replace(/\.(md|txt)$/, '');
+
+  // 1. Exact path match
+  const matchPath = allFiles.find(f => f.path.toLowerCase().endsWith(targetLower));
+  if (matchPath) return matchPath.path;
+
+  // 2. Exact file name match (e.g. '회의록.md')
+  const matchName = allFiles.find(f => f.name.toLowerCase() === targetLower);
+  if (matchName) return matchName.path;
+
+  // 3. Name without extension match (e.g. '회의록' -> '회의록.md')
+  const matchNoExt = allFiles.find(f => f.name.toLowerCase().replace(/\.(md|txt)$/, '') === targetWithoutExt);
+  if (matchNoExt) return matchNoExt.path;
+
+  return null;
+}
+
+// Jump to linked memo
+async function jumpToMemo(target) {
+  const cleanTarget = target.trim();
+  const matchedPath = findMemoPath(cleanTarget);
+
+  if (matchedPath) {
+    await loadFile(matchedPath);
+  } else {
+    // Prompt to create target memo if it doesn't exist
+    const defaultName = cleanTarget.endsWith('.md') || cleanTarget.endsWith('.txt') ? cleanTarget : `${cleanTarget}.md`;
+    if (confirm(`'${cleanTarget}' 메모를 찾을 수 없습니다.\n새로운 메모로 바로 생성하시겠습니까?`)) {
+      const activeDir = getActiveTargetDir();
+      try {
+        const res = await fetch('/api/create-file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dirPath: activeDir, fileName: defaultName })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        await loadTree();
+        await loadFile(data.path);
+      } catch (err) {
+        alert(err.message);
+      }
+    }
+  }
+}
+
+// Update Linked Memos Quick Bar
+function updateLinkedMemosBar() {
+  if (!state.currentFilePath) {
+    linkedMemosBar.classList.add('hidden');
+    return;
+  }
+
   const text = memoTextarea.value;
-  charCount.textContent = `${text.length} 글자`;
-  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-  wordCount.textContent = `${words} 단어`;
+  // Match [[메모이름]] or [라벨](경로)
+  const wikiMatches = [...text.matchAll(/\[\[(.*?)\]\]/g)].map(m => m[1].trim());
+  const mdMatches = [...text.matchAll(/\[(.*?)\]\((.*?)\)/g)].map(m => m[2].trim());
+  const uniqueLinks = Array.from(new Set([...wikiMatches, ...mdMatches])).filter(Boolean);
+
+  if (uniqueLinks.length === 0) {
+    linkedMemosBar.classList.add('hidden');
+    linkedPills.innerHTML = '';
+    return;
+  }
+
+  linkedMemosBar.classList.remove('hidden');
+  linkedPills.innerHTML = '';
+
+  uniqueLinks.forEach(linkTarget => {
+    const pill = document.createElement('span');
+    pill.className = 'linked-pill';
+    pill.innerHTML = `<span>🔗</span><span>${escapeHtml(linkTarget)}</span>`;
+    pill.title = `'${linkTarget}' 메모로 바로 이동`;
+    pill.onclick = () => jumpToMemo(linkTarget);
+    linkedPills.appendChild(pill);
+  });
+}
+
+// Open Link Insertion Modal
+function openLinkSelectorModal() {
+  const allFiles = getAllMemoFiles(state.treeData).filter(f => f.path !== state.currentFilePath);
+  linkSearchInput.value = '';
+  renderLinkItems(allFiles);
+  linkModalOverlay.classList.remove('hidden');
+  linkSearchInput.focus();
+
+  linkSearchInput.oninput = () => {
+    const q = linkSearchInput.value.toLowerCase().trim();
+    const filtered = allFiles.filter(f => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q));
+    renderLinkItems(filtered);
+  };
+}
+
+function renderLinkItems(files) {
+  linkItemsList.innerHTML = '';
+  if (files.length === 0) {
+    linkItemsList.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 12px;">일치하는 메모가 없습니다.</div>';
+    return;
+  }
+
+  files.forEach(file => {
+    const row = document.createElement('div');
+    row.className = 'link-item-row';
+    const relPath = file.path.replace(state.rootFolder, '').replace(/^[\\/]/, '');
+
+    row.innerHTML = `
+      <span style="font-size: 14px;">📝</span>
+      <span class="link-item-name">${escapeHtml(file.name)}</span>
+      <span class="link-item-path">${escapeHtml(relPath)}</span>
+    `;
+
+    row.onclick = () => {
+      insertLinkIntoTextarea(`[[${file.name}]]`);
+      linkModalOverlay.classList.add('hidden');
+    };
+
+    linkItemsList.appendChild(row);
+  });
+}
+
+function insertLinkIntoTextarea(linkText) {
+  const start = memoTextarea.selectionStart;
+  const end = memoTextarea.selectionEnd;
+  const val = memoTextarea.value;
+  memoTextarea.value = val.substring(0, start) + linkText + val.substring(end);
+  memoTextarea.selectionStart = memoTextarea.selectionEnd = start + linkText.length;
+  memoTextarea.focus();
+
+  state.isDirty = true;
+  updateSaveStatus('saving');
+  updateStats();
+  updateLinkedMemosBar();
+
+  if (state.saveTimeout) clearTimeout(state.saveTimeout);
+  state.saveTimeout = setTimeout(() => saveCurrentFile(false), 500);
+}
+
+// Simple Markdown to HTML with clickable memo links
+function renderMarkdownToHtml(mdText) {
+  if (!mdText) return '<p style="color: var(--text-muted);">메모 내용이 비어 있습니다.</p>';
+
+  let html = escapeHtml(mdText);
+
+  // 1. Convert [[메모명]] to clickable internal link
+  html = html.replace(/\[\[(.*?)\]\]/g, (match, target) => {
+    return `<span class="internal-memo-link" data-target="${target}">🔗 ${target}</span>`;
+  });
+
+  // 2. Convert standard markdown links [제목](경로)
+  html = html.replace(/\[(.*?)\]\((.*?)\)/g, (match, label, target) => {
+    return `<span class="internal-memo-link" data-target="${target}">🔗 ${label}</span>`;
+  });
+
+  // Headings
+  html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+  html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+  html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+  // Bold & Italic
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+  // Blockquotes
+  html = html.replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>');
+
+  // Unordered list items
+  html = html.replace(/^\s*[-*+]\s+(.*$)/gim, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>)/sim, '<ul>$1</ul>');
+
+  // Code blocks & inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // Paragraph line breaks
+  html = html.replace(/\n\n+/g, '</p><p>');
+  html = html.replace(/\n/g, '<br>');
+  html = `<p>${html}</p>`;
+
+  return html;
+}
+
+function escapeHtml(text) {
+  return (text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// Set View Mode (Edit vs Preview)
+function setMode(mode) {
+  state.viewMode = mode;
+  if (mode === 'preview') {
+    btnModePreview.classList.add('active');
+    btnModeEdit.classList.remove('active');
+    memoTextarea.classList.add('hidden');
+    memoPreview.classList.remove('hidden');
+
+    memoPreview.innerHTML = renderMarkdownToHtml(memoTextarea.value);
+
+    // Bind click events on internal links
+    memoPreview.querySelectorAll('.internal-memo-link').forEach(link => {
+      link.onclick = (e) => {
+        e.preventDefault();
+        const target = link.getAttribute('data-target');
+        if (target) jumpToMemo(target);
+      };
+    });
+  } else {
+    btnModeEdit.classList.add('active');
+    btnModePreview.classList.remove('active');
+    memoPreview.classList.add('hidden');
+    memoTextarea.classList.remove('hidden');
+    memoTextarea.focus();
+  }
 }
 
 function updateCursorPos() {
@@ -472,12 +721,19 @@ function setupEventListeners() {
   btnRefresh.onclick = loadTree;
   btnManualSave.onclick = () => saveCurrentFile(true);
 
-  // Auto-Save Debounce
+  // Link & View Mode actions
+  btnInsertLink.onclick = openLinkSelectorModal;
+  btnModeEdit.onclick = () => setMode('edit');
+  btnModePreview.onclick = () => setMode('preview');
+  btnLinkModalCancel.onclick = () => linkModalOverlay.classList.add('hidden');
+
+  // Auto-Save Debounce & Link Bar Update
   memoTextarea.addEventListener('input', () => {
     state.isDirty = true;
     updateSaveStatus('saving');
     updateStats();
     updateCursorPos();
+    updateLinkedMemosBar();
 
     if (state.saveTimeout) clearTimeout(state.saveTimeout);
     state.saveTimeout = setTimeout(() => {
@@ -485,7 +741,14 @@ function setupEventListeners() {
     }, 500);
   });
 
-  memoTextarea.addEventListener('click', updateCursorPos);
+  memoTextarea.addEventListener('click', (e) => {
+    updateCursorPos();
+    // Cmd+Click / Ctrl+Click on [[link]] directly inside textarea
+    if (e.metaKey || e.ctrlKey) {
+      handleTextareaLinkClick();
+    }
+  });
+
   memoTextarea.addEventListener('keyup', updateCursorPos);
 
   // Search Filter
@@ -508,6 +771,24 @@ function setupEventListeners() {
       closeModal();
     }
   };
+}
+
+// Detect [[link]] under cursor on Cmd/Ctrl+Click in textarea
+function handleTextareaLinkClick() {
+  const pos = memoTextarea.selectionStart;
+  const val = memoTextarea.value;
+  const before = val.substring(0, pos);
+  const after = val.substring(pos);
+
+  const openBracket = before.lastIndexOf('[[');
+  const closeBracket = after.indexOf(']]');
+
+  if (openBracket !== -1 && closeBracket !== -1) {
+    const target = val.substring(openBracket + 2, pos + closeBracket).trim();
+    if (target) {
+      jumpToMemo(target);
+    }
+  }
 }
 
 function filterTree(query) {
@@ -554,6 +835,11 @@ function setupKeyboardShortcuts() {
     if (mod && (e.key === 's' || e.key === 'S')) {
       e.preventDefault();
       saveCurrentFile(true);
+    }
+    // Cmd/Ctrl + K: Insert Memo Link
+    if (mod && (e.key === 'k' || e.key === 'K')) {
+      e.preventDefault();
+      if (!btnInsertLink.disabled) openLinkSelectorModal();
     }
     // Cmd/Ctrl + N: New File
     if (mod && (e.key === 'n' || e.key === 'N')) {

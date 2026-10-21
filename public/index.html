@@ -68,6 +68,13 @@
         </div>
 
         <div class="editor-actions">
+          <button class="btn btn-secondary btn-sm" id="btnInsertLink" disabled title="다른 메모로 이동하는 링크 삽입 (단축키: Cmd+K / Ctrl+K)">
+            🔗 링크 삽입
+          </button>
+          <div class="view-toggle-group">
+            <button class="btn btn-secondary btn-sm active" id="btnModeEdit" title="편집 모드">✏️ 편집</button>
+            <button class="btn btn-secondary btn-sm" id="btnModePreview" title="미리보기 모드 (링크 클릭 가능)">👁️ 미리보기</button>
+          </div>
           <span class="status-badge" id="saveStatusBadge"></span>
           <button class="btn btn-primary" id="btnManualSave" disabled title="단축키: Cmd+S / Ctrl+S">
             💾 저장
@@ -77,6 +84,12 @@
 
       <!-- Text Editor Container -->
       <div class="editor-body" id="editorBody">
+        <!-- Linked Memos Quick Bar -->
+        <div class="linked-memos-bar hidden" id="linkedMemosBar">
+          <span class="linked-label">🔗 본문 연결 메모:</span>
+          <div class="linked-pills" id="linkedPills"></div>
+        </div>
+
         <div class="empty-state" id="emptyState">
           <div class="empty-content">
             <span class="empty-icon">📂</span>
@@ -88,9 +101,11 @@
         <textarea 
           id="memoTextarea" 
           class="memo-textarea hidden" 
-          placeholder="여기에 자유롭게 메모를 작성하세요... (입력시 자동으로 실시간 저장됩니다)"
+          placeholder="여기에 자유롭게 메모를 작성하세요... (입력시 자동으로 실시간 저장됩니다)&#10;💡 팁: '[[다른메모제목]]' 형태로 입력하면 다른 메모로 이동하는 링크가 됩니다."
           spellcheck="false"
         ></textarea>
+
+        <div id="memoPreview" class="memo-preview hidden"></div>
       </div>
 
       <!-- Bottom Status Bar -->
@@ -120,6 +135,19 @@
       <div class="modal-buttons">
         <button class="btn btn-secondary" id="btnModalCancel">취소</button>
         <button class="btn btn-primary" id="btnModalConfirm">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Link Selector Modal -->
+  <div class="modal-overlay hidden" id="linkModalOverlay">
+    <div class="modal-card link-modal-card">
+      <h3 class="modal-title">🔗 연결할 메모 선택</h3>
+      <p class="modal-desc">본문에 바로가기 링크를 삽입할 메모를 선택하세요:</p>
+      <input type="text" class="modal-input" id="linkSearchInput" placeholder="검색할 메모 제목..." autocomplete="off">
+      <div class="link-items-list" id="linkItemsList"></div>
+      <div class="modal-buttons">
+        <button class="btn btn-secondary" id="btnLinkModalCancel">취소</button>
       </div>
     </div>
   </div>
