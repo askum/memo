@@ -479,6 +479,13 @@ function escapeHtml(text) {
     .replace(/'/g, '&#039;');
 }
 
+function updateStats() {
+  const text = memoTextarea.value || '';
+  charCount.textContent = `${text.length} 글자`;
+  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  wordCount.textContent = `${words} 단어`;
+}
+
 function updateCursorPos() {
   const pos = memoTextarea.selectionStart || 0;
   const lines = memoTextarea.value.substring(0, pos).split('\n');
