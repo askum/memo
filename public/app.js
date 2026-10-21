@@ -7,8 +7,7 @@ let state = {
   treeData: [],
   selectedNodePath: null,
   saveTimeout: null,
-  isDirty: false,
-  viewMode: 'edit' // 'edit' or 'preview'
+  isDirty: false
 };
 
 // DOM Elements
@@ -28,13 +27,10 @@ const filePathDisplay = document.getElementById('filePathDisplay');
 const saveStatusBadge = document.getElementById('saveStatusBadge');
 const btnManualSave = document.getElementById('btnManualSave');
 const btnInsertLink = document.getElementById('btnInsertLink');
-const btnModeEdit = document.getElementById('btnModeEdit');
-const btnModePreview = document.getElementById('btnModePreview');
 const linkedMemosBar = document.getElementById('linkedMemosBar');
 const linkedPills = document.getElementById('linkedPills');
 const emptyState = document.getElementById('emptyState');
 const memoTextarea = document.getElementById('memoTextarea');
-const memoPreview = document.getElementById('memoPreview');
 
 const charCount = document.getElementById('charCount');
 const wordCount = document.getElementById('wordCount');
@@ -263,13 +259,11 @@ async function loadFile(filePath) {
     // Show Editor
     emptyState.classList.add('hidden');
     memoTextarea.classList.remove('hidden');
-    memoPreview.classList.add('hidden');
 
     memoTextarea.value = fileData.content || '';
     btnManualSave.disabled = false;
     btnInsertLink.disabled = false;
 
-    setMode('edit');
     updateSaveStatus('saved');
     updateStats();
     updateCursorPos();
@@ -407,31 +401,33 @@ async function jumpToMemo(target) {
 // Update Linked Memos Quick Bar
 function updateLinkedMemosBar() {
   if (!state.currentFilePath) {
-    linkedMemosBar.classList.add('hidden');
+    linkedPills.innerHTML = '<span class="empty-hint">메모를 선택하세요.</span>';
     return;
   }
 
-  const text = memoTextarea.value;
+  const text = memoTextarea.value || '';
   // Match [[메모이름]] or [라벨](경로)
   const wikiMatches = [...text.matchAll(/\[\[(.*?)\]\]/g)].map(m => m[1].trim());
   const mdMatches = [...text.matchAll(/\[(.*?)\]\((.*?)\)/g)].map(m => m[2].trim());
   const uniqueLinks = Array.from(new Set([...wikiMatches, ...mdMatches])).filter(Boolean);
 
   if (uniqueLinks.length === 0) {
-    linkedMemosBar.classList.add('hidden');
-    linkedPills.innerHTML = '';
+    linkedPills.innerHTML = '<span class="empty-hint">연결된 메모 없음 (우측 상단 [🔗 링크 삽입] 클릭 또는 본문에 [[메모이름]] 입력)</span>';
     return;
   }
 
-  linkedMemosBar.classList.remove('hidden');
   linkedPills.innerHTML = '';
 
   uniqueLinks.forEach(linkTarget => {
-    const pill = document.createElement('span');
+    const pill = document.createElement('button');
     pill.className = 'linked-pill';
-    pill.innerHTML = `<span>🔗</span><span>${escapeHtml(linkTarget)}</span>`;
-    pill.title = `'${linkTarget}' 메모로 바로 이동`;
-    pill.onclick = () => jumpToMemo(linkTarget);
+    pill.type = 'button';
+    pill.innerHTML = `<span>📄</span><span>${escapeHtml(linkTarget)}</span><span>↗</span>`;
+    pill.title = `'${linkTarget}' 메모로 즉시 이동`;
+    pill.onclick = (e) => {
+      e.preventDefault();
+      jumpToMemo(linkTarget);
+    };
     linkedPills.appendChild(pill);
   });
 }
@@ -495,49 +491,6 @@ function insertLinkIntoTextarea(linkText) {
   state.saveTimeout = setTimeout(() => saveCurrentFile(false), 500);
 }
 
-// Simple Markdown to HTML with clickable memo links
-function renderMarkdownToHtml(mdText) {
-  if (!mdText) return '<p style="color: var(--text-muted);">메모 내용이 비어 있습니다.</p>';
-
-  let html = escapeHtml(mdText);
-
-  // 1. Convert [[메모명]] to clickable internal link
-  html = html.replace(/\[\[(.*?)\]\]/g, (match, target) => {
-    return `<span class="internal-memo-link" data-target="${target}">🔗 ${target}</span>`;
-  });
-
-  // 2. Convert standard markdown links [제목](경로)
-  html = html.replace(/\[(.*?)\]\((.*?)\)/g, (match, label, target) => {
-    return `<span class="internal-memo-link" data-target="${target}">🔗 ${label}</span>`;
-  });
-
-  // Headings
-  html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-  html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-  html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-
-  // Bold & Italic
-  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
-
-  // Blockquotes
-  html = html.replace(/^\> (.*$)/gim, '<blockquote>$1</blockquote>');
-
-  // Unordered list items
-  html = html.replace(/^\s*[-*+]\s+(.*$)/gim, '<li>$1</li>');
-  html = html.replace(/(<li>.*<\/li>)/sim, '<ul>$1</ul>');
-
-  // Code blocks & inline code
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-  // Paragraph line breaks
-  html = html.replace(/\n\n+/g, '</p><p>');
-  html = html.replace(/\n/g, '<br>');
-  html = `<p>${html}</p>`;
-
-  return html;
-}
-
 function escapeHtml(text) {
   return (text || '')
     .replace(/&/g, '&amp;')
@@ -545,34 +498,6 @@ function escapeHtml(text) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
-}
-
-// Set View Mode (Edit vs Preview)
-function setMode(mode) {
-  state.viewMode = mode;
-  if (mode === 'preview') {
-    btnModePreview.classList.add('active');
-    btnModeEdit.classList.remove('active');
-    memoTextarea.classList.add('hidden');
-    memoPreview.classList.remove('hidden');
-
-    memoPreview.innerHTML = renderMarkdownToHtml(memoTextarea.value);
-
-    // Bind click events on internal links
-    memoPreview.querySelectorAll('.internal-memo-link').forEach(link => {
-      link.onclick = (e) => {
-        e.preventDefault();
-        const target = link.getAttribute('data-target');
-        if (target) jumpToMemo(target);
-      };
-    });
-  } else {
-    btnModeEdit.classList.add('active');
-    btnModePreview.classList.remove('active');
-    memoPreview.classList.add('hidden');
-    memoTextarea.classList.remove('hidden');
-    memoTextarea.focus();
-  }
 }
 
 function updateCursorPos() {
@@ -753,10 +678,8 @@ function setupEventListeners() {
   btnRefresh.onclick = loadTree;
   btnManualSave.onclick = () => saveCurrentFile(true);
 
-  // Link & View Mode actions
+  // Link Insertion
   btnInsertLink.onclick = openLinkSelectorModal;
-  btnModeEdit.onclick = () => setMode('edit');
-  btnModePreview.onclick = () => setMode('preview');
   btnLinkModalCancel.onclick = () => linkModalOverlay.classList.add('hidden');
 
   // Auto-Save Debounce & Link Bar Update
@@ -773,12 +696,16 @@ function setupEventListeners() {
     }, 500);
   });
 
+  // Click & Double-Click to open link directly in textarea
   memoTextarea.addEventListener('click', (e) => {
     updateCursorPos();
-    // Cmd+Click / Ctrl+Click on [[link]] directly inside textarea
     if (e.metaKey || e.ctrlKey) {
       handleTextareaLinkClick();
     }
+  });
+
+  memoTextarea.addEventListener('dblclick', () => {
+    handleTextareaLinkClick();
   });
 
   memoTextarea.addEventListener('keyup', updateCursorPos);
