@@ -191,54 +191,83 @@ function openNativeFolderPicker(currentPath) {
         : '';
       const script = `osascript -e 'activate' -e 'POSIX path of (choose folder with prompt "메모를 저장할 폴더를 선택하세요"${defaultLoc})'`;
       exec(script, (err, stdout) => {
-        if (err) return resolve(null);
+        if (err) return resolve({ success: false, cancelled: true });
         const chosen = stdout.trim();
-        resolve(chosen || null);
+        if (chosen) {
+          return resolve({ success: true, rootFolder: chosen });
+        }
+        resolve({ success: false, cancelled: true });
       });
     } else if (process.platform === 'win32') {
-      // 1. Primary: Windows Forms FolderBrowserDialog in STA mode with Base64 encoding
+      // 1. Primary: Windows Forms FolderBrowserDialog via PowerShell (STA mode, TopMost owner, string comparison)
       const psScript = [
         '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
         'Add-Type -AssemblyName System.Windows.Forms',
         '$f = New-Object System.Windows.Forms.FolderBrowserDialog',
         '$f.ShowNewFolderButton = $true',
         '$f.Description = "메모를 저장할 폴더를 선택하세요"',
-        currentPath && fs.existsSync(currentPath) ? `$f.SelectedPath = "${currentPath.replace(/\\/g, '\\\\')}"` : '',
-        '$form = New-Object System.Windows.Forms.Form',
-        '$form.TopMost = $true',
-        'if ($f.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {',
-        '    Write-Output $f.SelectedPath',
-        '}'
-      ].filter(Boolean).join('\r\n');
+        '$owner = New-Object System.Windows.Forms.Form -Property @{ TopMost = $true; TopLevel = $true }',
+        'if ($f.ShowDialog($owner) -eq "OK") {',
+        '    [Console]::WriteLine($f.SelectedPath)',
+        '} else {',
+        '    [Console]::WriteLine("__CANCEL__")',
+        '}',
+        '$owner.Dispose()',
+        '$f.Dispose()'
+      ].join('\r\n');
 
       const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
-      exec(`powershell -NoProfile -STA -EncodedCommand ${encoded}`, (err, stdout, stderr) => {
-        if (!err && stdout && stdout.trim()) {
-          return resolve(stdout.trim());
+      const psCmd = `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -STA -EncodedCommand ${encoded}`;
+
+      exec(psCmd, { timeout: 300000 }, (err, stdout, stderr) => {
+        const out = (stdout || '').trim();
+        if (!err && out) {
+          if (out.includes('__CANCEL__')) {
+            return resolve({ success: false, cancelled: true });
+          }
+          const lines = out.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+          const chosen = lines[lines.length - 1];
+          if (chosen && chosen !== '__CANCEL__' && fs.existsSync(chosen)) {
+            return resolve({ success: true, rootFolder: chosen });
+          }
         }
 
-        // 2. Fallback: VBScript Shell.Application BrowseForFolder
+        // 2. Fallback: VBScript Shell.Application BrowseForFolder with modern style (&H0050 = 80)
+        // Written as pure ASCII to avoid any Windows ANSI/UTF code-page compilation errors
         const vbsScript = [
           'Set shell = CreateObject("Shell.Application")',
-          'Set folder = shell.BrowseForFolder(0, "메모를 저장할 폴더를 선택하세요", 0, 0)',
+          'Set folder = shell.BrowseForFolder(0, "Select a folder for Desktop Memo", 80, 0)',
           'If Not folder Is Nothing Then',
           '    WScript.Echo folder.Self.Path',
+          'Else',
+          '    WScript.Echo "__CANCEL__"',
           'End If'
         ].join('\r\n');
+
         const vbsPath = path.join(os.tmpdir(), `memo_browse_${Date.now()}.vbs`);
         try {
-          fs.writeFileSync(vbsPath, vbsScript, 'utf-8');
-          exec(`cscript //Nologo "${vbsPath}"`, (vbsErr, vbsOut) => {
+          fs.writeFileSync(vbsPath, vbsScript, 'ascii');
+          exec(`cscript //Nologo "${vbsPath}"`, { timeout: 300000 }, (vbsErr, vbsOut) => {
             try { fs.unlinkSync(vbsPath); } catch (e) {}
-            if (vbsErr || !vbsOut) return resolve(null);
-            resolve(vbsOut.trim() || null);
+            const vOut = (vbsOut || '').trim();
+            if (!vbsErr && vOut) {
+              if (vOut.includes('__CANCEL__')) {
+                return resolve({ success: false, cancelled: true });
+              }
+              const lines = vOut.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+              const chosen = lines[lines.length - 1];
+              if (chosen && chosen !== '__CANCEL__' && fs.existsSync(chosen)) {
+                return resolve({ success: true, rootFolder: chosen });
+              }
+            }
+            resolve({ success: false, error: '시스템 탐색기 프로세스를 실행할 수 없습니다.' });
           });
         } catch (e) {
-          resolve(null);
+          resolve({ success: false, error: '탐색기 호출 실패: ' + e.message });
         }
       });
     } else {
-      resolve(null);
+      resolve({ success: false, error: '지원되지 않는 운영체제입니다.' });
     }
   });
 }
@@ -314,15 +343,15 @@ const server = http.createServer(async (req, res) => {
     // API: Native Folder Picker Dialog
     if (pathname === '/api/browse-folder' && req.method === 'POST') {
       const current = getConfig().rootFolder;
-      const picked = await openNativeFolderPicker(current);
-      if (picked) {
+      const result = await openNativeFolderPicker(current);
+      if (result && result.success && result.rootFolder) {
         const cfg = getConfig();
-        cfg.rootFolder = picked;
-        ensureSeedFiles(picked);
+        cfg.rootFolder = result.rootFolder;
+        ensureSeedFiles(result.rootFolder);
         saveConfig(cfg);
-        return sendJSON(res, 200, { success: true, rootFolder: picked });
+        return sendJSON(res, 200, { success: true, rootFolder: result.rootFolder });
       }
-      return sendJSON(res, 200, { success: false, cancelled: true });
+      return sendJSON(res, 200, result || { success: false, cancelled: true });
     }
 
     // API: List Directories for in-app Folder Browser
@@ -352,7 +381,12 @@ const server = http.createServer(async (req, res) => {
         { name: '🖥️ 데스크탑 (바탕화면)', path: path.join(home, 'Desktop') },
         { name: '📄 문서', path: path.join(home, 'Documents') },
         { name: '📥 다운로드', path: path.join(home, 'Downloads') }
-      ].filter(loc => fs.existsSync(loc.path));
+      ];
+      if (process.platform === 'win32') {
+        if (fs.existsSync('C:\\')) quickLocations.push({ name: '💾 로컬 디스크 (C:)', path: 'C:\\' });
+        if (fs.existsSync('D:\\')) quickLocations.push({ name: '💾 로컬 디스크 (D:)', path: 'D:\\' });
+      }
+      const validQuickLocations = quickLocations.filter(loc => fs.existsSync(loc.path));
 
       let subdirs = [];
       try {
@@ -376,7 +410,7 @@ const server = http.createServer(async (req, res) => {
       return sendJSON(res, 200, {
         currentPath: targetPath,
         parentPath: hasParent ? parentPath : null,
-        quickLocations,
+        quickLocations: validQuickLocations,
         folders: subdirs
       });
     }

@@ -1269,10 +1269,12 @@ function setupEventListeners() {
           updateRootFolderDisplay();
           await loadTree();
           closeFolderBrowser();
+        } else if (data.error) {
+          alert('시스템 탐색기를 열지 못했습니다: ' + data.error + '\n\n현재 화면에 표시된 폴더 목록에서 직접 원하는 폴더를 선택하실 수 있습니다.');
         }
       } catch (e) {
         console.warn('Native picker error:', e);
-        alert('시스템 탐색기를 여는 중 오류가 발생했습니다.');
+        alert('시스템 탐색기 호출 중 오류가 발생했습니다.\n현재 화면의 폴더 목록에서 직접 원하는 폴더를 선택해주세요.');
       } finally {
         btnFbNativePicker.disabled = false;
         btnFbNativePicker.innerHTML = origHtml;
