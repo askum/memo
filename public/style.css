@@ -864,7 +864,8 @@ body, html {
   top: 14px;
   right: 24px;
   z-index: 60;
-  width: 390px;
+  width: 410px;
+  max-width: calc(100% - 48px);
   background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 9px;
@@ -874,6 +875,7 @@ body, html {
   flex-direction: column;
   gap: 6px;
   animation: frFadeIn 0.15s ease-out;
+  box-sizing: border-box;
 }
 
 @keyframes frFadeIn {
@@ -889,6 +891,7 @@ body, html {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
 }
 
 .fr-replace-row.hidden {
@@ -897,6 +900,7 @@ body, html {
 
 .fr-input-wrap {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   background-color: var(--bg-secondary);
@@ -904,6 +908,8 @@ body, html {
   border-radius: 6px;
   padding: 3px 8px;
   transition: border-color 0.15s;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .fr-input-wrap:focus-within {
@@ -914,10 +920,13 @@ body, html {
   font-size: 12px;
   margin-right: 6px;
   opacity: 0.6;
+  flex-shrink: 0;
 }
 
 .fr-input {
   flex: 1;
+  min-width: 0;
+  width: 100%;
   background: transparent;
   border: none;
   outline: none;
@@ -925,7 +934,6 @@ body, html {
   color: var(--text-primary);
   font-family: inherit;
   padding: 2px 0;
-  min-width: 0;
 }
 
 .fr-count {
@@ -934,12 +942,17 @@ body, html {
   white-space: nowrap;
   margin-left: 6px;
   user-select: none;
+  flex-shrink: 0;
+  min-width: 58px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .fr-btn-group {
   display: flex;
   align-items: center;
   gap: 3px;
+  flex-shrink: 0;
 }
 
 .fr-tool-btn, .fr-nav-btn, .fr-close-btn {
@@ -947,6 +960,19 @@ body, html {
   font-size: 11px;
   border-radius: 4px;
   min-width: 24px;
+  flex-shrink: 0;
+}
+
+.fr-close-btn:hover {
+  background-color: #fee2e2;
+  color: #ef4444;
+  border-color: #fca5a5;
+}
+
+[data-theme="dark"] .fr-close-btn:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.4);
 }
 
 .fr-tool-btn.active {
@@ -960,6 +986,7 @@ body, html {
   font-size: 12px;
   padding: 4px 8px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 #btnToggleFindReplace.active {
