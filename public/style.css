@@ -697,6 +697,99 @@ body, html {
   line-height: 1.5;
 }
 
+/* Editor Workspace (Gutter + Textarea) */
+.editor-workspace {
+  flex: 1;
+  display: flex;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+}
+
+.editor-workspace.hidden {
+  display: none !important;
+}
+
+/* Editor Gutter (Line Numbers) */
+.editor-gutter {
+  width: 48px;
+  min-width: 48px;
+  height: 100%;
+  overflow: hidden;
+  user-select: none;
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
+  box-sizing: border-box;
+  padding: 20px 0;
+  flex-shrink: 0;
+  transition: width 0.15s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.editor-gutter.hidden {
+  display: none !important;
+}
+
+.gutter-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.gutter-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding-right: 12px;
+  padding-left: 6px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--text-muted);
+  opacity: 0.65;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: color 0.1s ease, background-color 0.1s ease;
+}
+
+.gutter-line:hover {
+  color: var(--text-primary);
+  opacity: 1;
+  background-color: var(--bg-hover);
+}
+
+.gutter-line.active {
+  color: var(--accent-primary);
+  font-weight: 700;
+  opacity: 1;
+}
+
+[data-theme="dark"] .gutter-line.active {
+  color: #60a5fa;
+}
+
+/* Off-screen mirror for calculating wrapped line heights */
+.editor-mirror {
+  position: absolute;
+  top: -99999px;
+  left: -99999px;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 24px;
+  box-sizing: border-box;
+}
+
+.mirror-row {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 .memo-textarea {
   flex: 1;
   width: 100%;
@@ -704,13 +797,43 @@ body, html {
   border: none;
   outline: none;
   resize: none;
-  padding: 24px 28px;
+  padding: 20px 24px;
   font-family: var(--font-mono);
-  font-size: 14.5px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 24px;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   user-select: text;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Line Numbers Toggle Button Active State */
+#btnToggleLineNumbers.active {
+  background-color: #e0e7ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+[data-theme="dark"] #btnToggleLineNumbers.active {
+  background-color: rgba(59, 130, 246, 0.2);
+  border-color: #60a5fa;
+  color: #93c5fd;
+}
+
+.clickable-footer-status {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.clickable-footer-status:hover {
+  background-color: var(--bg-hover);
+  color: var(--accent-primary);
 }
 
 /* Editor Footer */

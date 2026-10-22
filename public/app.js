@@ -1,6 +1,8 @@
 /**
  * Desktop Memo Frontend Client
  */
+const savedLinePref = localStorage.getItem('memo_show_line_numbers');
+
 let state = {
   rootFolder: '',
   currentFilePath: null,
@@ -10,7 +12,8 @@ let state = {
   maxSaveTimeout: null,
   isDirty: false,
   lastSavedContent: null,
-  lastSavedTimeStr: ''
+  lastSavedTimeStr: '',
+  showLineNumbers: savedLinePref !== null ? savedLinePref === 'true' : true
 };
 
 // Navigation History
@@ -36,10 +39,14 @@ const btnNavForward = document.getElementById('btnNavForward');
 const fileIcon = document.getElementById('fileIcon');
 const fileTitle = document.getElementById('fileTitle');
 const filePathDisplay = document.getElementById('filePathDisplay');
+const btnToggleLineNumbers = document.getElementById('btnToggleLineNumbers');
 const saveStatusBadge = document.getElementById('saveStatusBadge');
 const btnManualSave = document.getElementById('btnManualSave');
 const btnInsertLink = document.getElementById('btnInsertLink');
 const emptyState = document.getElementById('emptyState');
+const editorWorkspace = document.getElementById('editorWorkspace');
+const editorGutter = document.getElementById('editorGutter');
+const gutterInner = document.getElementById('gutterInner');
 const memoTextarea = document.getElementById('memoTextarea');
 
 const charCount = document.getElementById('charCount');
@@ -160,6 +167,7 @@ function toggleTheme() {
 // Init Application
 async function init() {
   initTheme();
+  updateLineNumbersVisibility();
   setupSplitter();
   setupKeyboardShortcuts();
   setupEventListeners();
@@ -418,6 +426,7 @@ async function loadFile(filePath, isNavigatingHistory = false) {
 
     // Show Editor
     emptyState.classList.add('hidden');
+    if (editorWorkspace) editorWorkspace.classList.remove('hidden');
     memoTextarea.classList.remove('hidden');
 
     memoTextarea.value = state.lastSavedContent;
@@ -428,6 +437,8 @@ async function loadFile(filePath, isNavigatingHistory = false) {
     updateSaveStatus('clean', state.lastSavedTimeStr);
     updateStats();
     updateCursorPos();
+    updateLineNumbers();
+    highlightActiveLine();
 
     // Highlight active tree node
     updateTreeActiveState();
@@ -816,6 +827,111 @@ function updateCursorPos() {
   cursorPos.textContent = `줄 ${line}, 열 ${col}`;
 }
 
+// --- Line Numbers (Gutter) Logic ---
+let mirrorEl = null;
+let updateLineNumbersRaf = null;
+
+function getMirrorElement() {
+  if (!mirrorEl) {
+    mirrorEl = document.createElement('div');
+    mirrorEl.className = 'editor-mirror';
+    document.body.appendChild(mirrorEl);
+  }
+  return mirrorEl;
+}
+
+function updateLineNumbers() {
+  if (!state.showLineNumbers || !editorGutter || !memoTextarea) return;
+  if (updateLineNumbersRaf) cancelAnimationFrame(updateLineNumbersRaf);
+  updateLineNumbersRaf = requestAnimationFrame(() => {
+    renderLineNumbers();
+  });
+}
+
+function renderLineNumbers() {
+  if (!state.showLineNumbers || !editorGutter || !memoTextarea || !gutterInner) return;
+
+  const text = memoTextarea.value || '';
+  const lines = text.split('\n');
+  const lineCount = lines.length;
+
+  // Auto-expand gutter width for 3, 4, 5+ digits so numbers never clip
+  const digits = Math.max(2, String(lineCount).length);
+  const gutterWidth = Math.max(48, 16 + digits * 9);
+  editorGutter.style.width = `${gutterWidth}px`;
+  editorGutter.style.minWidth = `${gutterWidth}px`;
+
+  // Sync mirror style with textarea
+  const mirror = getMirrorElement();
+  const cs = window.getComputedStyle(memoTextarea);
+  const pl = parseFloat(cs.paddingLeft) || 24;
+  const pr = parseFloat(cs.paddingRight) || 24;
+  const contentWidth = Math.max(60, memoTextarea.clientWidth - pl - pr);
+  mirror.style.width = `${contentWidth}px`;
+  mirror.style.fontFamily = cs.fontFamily;
+  mirror.style.fontSize = cs.fontSize;
+  mirror.style.lineHeight = cs.lineHeight;
+
+  // Render mirror lines to measure wrapped line heights
+  let mirrorHtml = '';
+  for (let i = 0; i < lineCount; i++) {
+    const raw = lines[i];
+    const escaped = raw ? raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '&nbsp;';
+    mirrorHtml += `<div class="mirror-row">${escaped}</div>`;
+  }
+  mirror.innerHTML = mirrorHtml;
+
+  // Measure heights and generate gutter markup
+  const rows = mirror.children;
+  const pos = memoTextarea.selectionStart || 0;
+  const currentLineIdx = text.substring(0, pos).split('\n').length - 1;
+
+  let gutterHtml = '';
+  for (let i = 0; i < lineCount; i++) {
+    const h = rows[i] ? rows[i].offsetHeight : 24;
+    const isActive = (i === currentLineIdx);
+    gutterHtml += `<div class="gutter-line${isActive ? ' active' : ''}" data-line="${i + 1}" style="height: ${h}px; line-height: 24px;" title="클릭하여 ${i + 1}번째 줄 선택">${i + 1}</div>`;
+  }
+
+  gutterInner.innerHTML = gutterHtml;
+  editorGutter.scrollTop = memoTextarea.scrollTop;
+}
+
+function highlightActiveLine() {
+  if (!state.showLineNumbers || !gutterInner) return;
+  const pos = memoTextarea.selectionStart || 0;
+  const currentLineIdx = (memoTextarea.value || '').substring(0, pos).split('\n').length - 1;
+  const lineEls = gutterInner.children;
+  for (let i = 0; i < lineEls.length; i++) {
+    if (i === currentLineIdx) {
+      if (!lineEls[i].classList.contains('active')) lineEls[i].classList.add('active');
+    } else {
+      if (lineEls[i].classList.contains('active')) lineEls[i].classList.remove('active');
+    }
+  }
+}
+
+function toggleLineNumbers(forceState) {
+  state.showLineNumbers = (typeof forceState === 'boolean') ? forceState : !state.showLineNumbers;
+  localStorage.setItem('memo_show_line_numbers', state.showLineNumbers ? 'true' : 'false');
+  updateLineNumbersVisibility();
+}
+
+function updateLineNumbersVisibility() {
+  if (!editorGutter || !btnToggleLineNumbers) return;
+  if (state.showLineNumbers) {
+    editorGutter.classList.remove('hidden');
+    btnToggleLineNumbers.classList.add('active');
+    btnToggleLineNumbers.title = '라인 번호 숨기기 (단축키: Alt+L)';
+    updateLineNumbers();
+    highlightActiveLine();
+  } else {
+    editorGutter.classList.add('hidden');
+    btnToggleLineNumbers.classList.remove('active');
+    btnToggleLineNumbers.title = '라인 번호 표시 (단축키: Alt+L)';
+  }
+}
+
 // Prompt Modals
 function showModal(title, desc, initialValue, onConfirm) {
   modalTitle.textContent = title;
@@ -933,6 +1049,7 @@ function promptDelete(targetPath, name, isDir) {
       if (state.currentFilePath === targetPath || (isDir && state.currentFilePath?.startsWith(targetPath + '/'))) {
         state.currentFilePath = null;
         emptyState.classList.remove('hidden');
+        if (editorWorkspace) editorWorkspace.classList.add('hidden');
         memoTextarea.classList.add('hidden');
         fileTitle.textContent = '선택된 메모 없음';
         filePathDisplay.textContent = '👈 왼쪽 트리에서 메모 파일을 선택하거나 새로 만드세요';
@@ -1156,10 +1273,77 @@ function setupEventListeners() {
   btnInsertLink.onclick = openLinkSelectorModal;
   btnLinkModalCancel.onclick = () => linkModalOverlay.classList.add('hidden');
 
+  // Line Numbers Toggle
+  if (btnToggleLineNumbers) {
+    btnToggleLineNumbers.onclick = () => {
+      toggleLineNumbers();
+    };
+  }
+
+  // Footer cursor position click toggles line numbers
+  if (cursorPos) {
+    cursorPos.onclick = () => {
+      toggleLineNumbers();
+    };
+  }
+
+  // Gutter line click to select that line
+  if (gutterInner) {
+    gutterInner.addEventListener('click', (e) => {
+      const lineEl = e.target.closest('.gutter-line');
+      if (!lineEl) return;
+      const lineNum = parseInt(lineEl.dataset.line, 10);
+      if (!lineNum) return;
+
+      const lines = memoTextarea.value.split('\n');
+      let startIdx = 0;
+      for (let i = 0; i < lineNum - 1 && i < lines.length; i++) {
+        startIdx += lines[i].length + 1;
+      }
+      const lineContent = lines[lineNum - 1] || '';
+      const endIdx = startIdx + lineContent.length;
+
+      memoTextarea.focus();
+      memoTextarea.setSelectionRange(startIdx, endIdx);
+      updateCursorPos();
+      highlightActiveLine();
+    });
+  }
+
+  // Scroll sync: textarea scrolls gutter
+  memoTextarea.addEventListener('scroll', () => {
+    if (state.showLineNumbers && editorGutter) {
+      editorGutter.scrollTop = memoTextarea.scrollTop;
+    }
+  }, { passive: true });
+
+  // Scroll sync: wheel over gutter scrolls textarea
+  if (editorGutter) {
+    editorGutter.addEventListener('wheel', (e) => {
+      memoTextarea.scrollTop += e.deltaY;
+    }, { passive: true });
+  }
+
+  // ResizeObserver to adjust gutter heights when window/sidebar resizes
+  try {
+    const ro = new ResizeObserver(() => {
+      if (state.showLineNumbers) {
+        updateLineNumbers();
+      }
+    });
+    ro.observe(memoTextarea);
+  } catch (err) {
+    window.addEventListener('resize', () => {
+      if (state.showLineNumbers) updateLineNumbers();
+    });
+  }
+
   // Auto-Save: Debounce (1s idle) + Max Interval (3s continuous)
   memoTextarea.addEventListener('input', () => {
     updateStats();
     updateCursorPos();
+    updateLineNumbers();
+    highlightActiveLine();
 
     // Check if the content is ACTUALLY different from what's on disk
     const isActuallyModified = state.lastSavedContent !== null && memoTextarea.value !== state.lastSavedContent;
@@ -1205,6 +1389,7 @@ function setupEventListeners() {
   // Click & Double-Click to open link directly in textarea
   memoTextarea.addEventListener('click', (e) => {
     updateCursorPos();
+    highlightActiveLine();
     if (e.metaKey || e.ctrlKey) {
       handleTextareaLinkClick();
     }
@@ -1214,7 +1399,11 @@ function setupEventListeners() {
     handleTextareaLinkClick();
   });
 
-  memoTextarea.addEventListener('keyup', updateCursorPos);
+  memoTextarea.addEventListener('keyup', () => {
+    updateCursorPos();
+    highlightActiveLine();
+  });
+  memoTextarea.addEventListener('select', highlightActiveLine);
 
   // Search Filter
   treeSearchInput.addEventListener('input', (e) => {
@@ -1346,6 +1535,13 @@ function setupKeyboardShortcuts() {
     if (mod && (e.key === 's' || e.key === 'S')) {
       e.preventDefault();
       saveCurrentFile(true);
+      return;
+    }
+    // Alt + L or Cmd/Ctrl + Shift + L: Toggle Line Numbers
+    if ((e.altKey && (e.key === 'l' || e.key === 'L' || e.code === 'KeyL')) ||
+        (mod && e.shiftKey && (e.key === 'l' || e.key === 'L' || e.code === 'KeyL'))) {
+      e.preventDefault();
+      toggleLineNumbers();
       return;
     }
     // Cmd/Ctrl + K: Insert Memo Link

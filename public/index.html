@@ -10,7 +10,7 @@
   <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2">
   <link rel="apple-touch-icon" href="favicon-256.png?v=2">
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
   <div class="app-container">
@@ -87,6 +87,9 @@
         </div>
 
         <div class="editor-actions">
+          <button class="btn btn-secondary btn-sm" id="btnToggleLineNumbers" title="라인 번호 표시/숨기기 (단축키: Alt+L)">
+            🔢 줄 번호
+          </button>
           <button class="btn btn-secondary btn-sm" id="btnInsertLink" disabled title="다른 메모로 이동하는 링크 삽입 (단축키: Cmd+K / Ctrl+K)">
             🔗 링크 삽입
           </button>
@@ -107,12 +110,17 @@
           </div>
         </div>
 
-        <textarea 
-          id="memoTextarea" 
-          class="memo-textarea hidden" 
-          placeholder="여기에 자유롭게 메모를 작성하세요... (입력시 자동으로 실시간 저장됩니다)&#10;다른 메모로 연결하려면 우측 상단 [🔗 링크 삽입]을 누르거나 '[[메모이름]]'을 적어두고 더블 클릭하면 됩니다."
-          spellcheck="false"
-        ></textarea>
+        <div class="editor-workspace hidden" id="editorWorkspace">
+          <div class="editor-gutter hidden" id="editorGutter" aria-hidden="true">
+            <div class="gutter-inner" id="gutterInner"></div>
+          </div>
+          <textarea 
+            id="memoTextarea" 
+            class="memo-textarea hidden" 
+            placeholder="여기에 자유롭게 메모를 작성하세요... (입력시 자동으로 실시간 저장됩니다)&#10;다른 메모로 연결하려면 우측 상단 [🔗 링크 삽입]을 누르거나 '[[메모이름]]'을 적어두고 더블 클릭하면 됩니다."
+            spellcheck="false"
+          ></textarea>
+        </div>
       </div>
 
       <!-- Bottom Status Bar -->
@@ -125,7 +133,7 @@
           <button class="footer-link-btn" id="btnFooterHelp" title="기능 및 단축키 안내 열기">📖 기능 안내</button>
         </div>
         <div class="footer-right">
-          <span id="cursorPos">줄 1, 열 1</span>
+          <span id="cursorPos" class="clickable-footer-status" title="클릭하여 줄 번호 토글 (단축키: Alt+L)">줄 1, 열 1</span>
           <span class="separator">|</span>
           <span>UTF-8</span>
           <span class="separator">|</span>
@@ -223,6 +231,14 @@
                 <p>좌측 상단 <code>🌙</code>/<code>☀️</code> 버튼을 누르면 언제든 다크 모드와 라이트 모드를 전환할 수 있습니다. 설정은 컴퓨터에 자동 저장되어 다음 실행 시에도 유지됩니다.</p>
               </div>
             </div>
+
+            <div class="help-card">
+              <div class="help-card-icon">🔢</div>
+              <div class="help-card-content">
+                <strong>좌측 줄(라인) 번호 표시 및 이동</strong>
+                <p>우측 상단 <strong>[🔢 줄 번호]</strong> 버튼이나 단축키(<code>Alt+L</code> 또는 <code>Option+L</code>)로 좌측 줄 번호를 자유롭게 켜고 끌 수 있습니다. 특정 줄 번호를 클릭하면 해당 줄로 즉시 이동 및 선택됩니다.</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -238,6 +254,11 @@
               </tr>
             </thead>
             <tbody>
+              <tr>
+                <td><strong>줄 번호 켜기 / 끄기</strong></td>
+                <td><kbd>Option</kbd> + <kbd>L</kbd></td>
+                <td><kbd>Alt</kbd> + <kbd>L</kbd></td>
+              </tr>
               <tr>
                 <td><strong>메모 즉시 저장</strong></td>
                 <td><kbd>Cmd</kbd> + <kbd>S</kbd></td>
@@ -337,6 +358,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>
