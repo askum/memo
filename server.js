@@ -185,11 +185,46 @@ function openNativeFolderPicker(currentPath) {
         resolve(chosen || null);
       });
     } else if (process.platform === 'win32') {
-      const psScript = `powershell -NoProfile -Command "& {Add-Type -AssemblyName System.Windows.Forms; $f = New-Object System.Windows.Forms.FolderBrowserDialog; $f.Description = '메모를 저장할 폴더를 선택하세요'; if ($f.ShowDialog() -eq 'OK') { Write-Output $f.SelectedPath }}"`;
-      exec(psScript, (err, stdout) => {
-        if (err) return resolve(null);
-        const chosen = stdout.trim();
-        resolve(chosen || null);
+      // 1. Primary: Windows Forms FolderBrowserDialog in STA mode with Base64 encoding
+      const psScript = [
+        '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+        'Add-Type -AssemblyName System.Windows.Forms',
+        '$f = New-Object System.Windows.Forms.FolderBrowserDialog',
+        '$f.ShowNewFolderButton = $true',
+        '$f.Description = "메모를 저장할 폴더를 선택하세요"',
+        currentPath && fs.existsSync(currentPath) ? `$f.SelectedPath = "${currentPath.replace(/\\/g, '\\\\')}"` : '',
+        '$form = New-Object System.Windows.Forms.Form',
+        '$form.TopMost = $true',
+        'if ($f.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {',
+        '    Write-Output $f.SelectedPath',
+        '}'
+      ].filter(Boolean).join('\r\n');
+
+      const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+      exec(`powershell -NoProfile -STA -EncodedCommand ${encoded}`, (err, stdout, stderr) => {
+        if (!err && stdout && stdout.trim()) {
+          return resolve(stdout.trim());
+        }
+
+        // 2. Fallback: VBScript Shell.Application BrowseForFolder
+        const vbsScript = [
+          'Set shell = CreateObject("Shell.Application")',
+          'Set folder = shell.BrowseForFolder(0, "메모를 저장할 폴더를 선택하세요", 0, 0)',
+          'If Not folder Is Nothing Then',
+          '    WScript.Echo folder.Self.Path',
+          'End If'
+        ].join('\r\n');
+        const vbsPath = path.join(os.tmpdir(), `memo_browse_${Date.now()}.vbs`);
+        try {
+          fs.writeFileSync(vbsPath, vbsScript, 'utf-8');
+          exec(`cscript //Nologo "${vbsPath}"`, (vbsErr, vbsOut) => {
+            try { fs.unlinkSync(vbsPath); } catch (e) {}
+            if (vbsErr || !vbsOut) return resolve(null);
+            resolve(vbsOut.trim() || null);
+          });
+        } catch (e) {
+          resolve(null);
+        }
       });
     } else {
       resolve(null);

@@ -1115,7 +1115,10 @@ function setupEventListeners() {
 
   if (btnFbNativePicker) {
     btnFbNativePicker.onclick = async () => {
+      const origHtml = btnFbNativePicker.innerHTML;
       try {
+        btnFbNativePicker.disabled = true;
+        btnFbNativePicker.innerHTML = '⏳ 탐색기 여는 중...';
         const res = await fetch('/api/browse-folder', { method: 'POST' });
         const data = await res.json();
         if (data.success && data.rootFolder) {
@@ -1126,6 +1129,10 @@ function setupEventListeners() {
         }
       } catch (e) {
         console.warn('Native picker error:', e);
+        alert('시스템 탐색기를 여는 중 오류가 발생했습니다.');
+      } finally {
+        btnFbNativePicker.disabled = false;
+        btnFbNativePicker.innerHTML = origHtml;
       }
     };
   }
