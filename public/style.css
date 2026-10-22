@@ -810,6 +810,13 @@ body, html {
   overflow-wrap: break-word;
 }
 
+.memo-textarea.no-wrap {
+  white-space: pre !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  overflow-x: auto !important;
+}
+
 /* Line Numbers Toggle Button Active State */
 #btnToggleLineNumbers.active {
   background-color: #e0e7ff;
@@ -822,6 +829,41 @@ body, html {
   background-color: rgba(59, 130, 246, 0.2);
   border-color: #60a5fa;
   color: #93c5fd;
+}
+
+/* Footer Toggle Buttons */
+.footer-toggle-btn {
+  background: none;
+  border: 1px solid transparent;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: inherit;
+}
+
+.footer-toggle-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.footer-toggle-btn.active {
+  color: var(--accent-primary);
+  font-weight: 600;
+  background-color: var(--bg-active);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+[data-theme="dark"] .footer-toggle-btn.active {
+  color: #60a5fa;
+  background-color: rgba(59, 130, 246, 0.18);
+  border-color: rgba(96, 165, 250, 0.4);
 }
 
 .clickable-footer-status {

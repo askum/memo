@@ -2,6 +2,7 @@
  * Desktop Memo Frontend Client
  */
 const savedLinePref = localStorage.getItem('memo_show_line_numbers');
+const savedWrapPref = localStorage.getItem('memo_word_wrap');
 
 let state = {
   rootFolder: '',
@@ -14,7 +15,8 @@ let state = {
   isDirty: false,
   lastSavedContent: null,
   lastSavedTimeStr: '',
-  showLineNumbers: savedLinePref !== null ? savedLinePref === 'true' : true
+  showLineNumbers: savedLinePref !== null ? savedLinePref === 'true' : true,
+  wordWrap: savedWrapPref !== null ? savedWrapPref === 'true' : true
 };
 
 // Navigation History
@@ -42,6 +44,8 @@ const fileTitle = document.getElementById('fileTitle');
 const filePathDisplay = document.getElementById('filePathDisplay');
 const btnToggleFindReplace = document.getElementById('btnToggleFindReplace');
 const btnToggleLineNumbers = document.getElementById('btnToggleLineNumbers');
+const btnFooterLineNumbers = document.getElementById('btnFooterLineNumbers');
+const btnFooterWordWrap = document.getElementById('btnFooterWordWrap');
 const saveStatusBadge = document.getElementById('saveStatusBadge');
 const btnManualSave = document.getElementById('btnManualSave');
 const btnInsertLink = document.getElementById('btnInsertLink');
@@ -183,6 +187,7 @@ function toggleTheme() {
 // Init Application
 async function init() {
   initTheme();
+  updateWordWrapVisibility();
   updateLineNumbersVisibility();
   setupSplitter();
   setupKeyboardShortcuts();
@@ -1064,36 +1069,48 @@ function renderLineNumbers() {
   editorGutter.style.width = `${gutterWidth}px`;
   editorGutter.style.minWidth = `${gutterWidth}px`;
 
-  // Sync mirror style with textarea
-  const mirror = getMirrorElement();
-  const cs = window.getComputedStyle(memoTextarea);
-  const pl = parseFloat(cs.paddingLeft) || 24;
-  const pr = parseFloat(cs.paddingRight) || 24;
-  const contentWidth = Math.max(60, memoTextarea.clientWidth - pl - pr);
-  mirror.style.width = `${contentWidth}px`;
-  mirror.style.fontFamily = cs.fontFamily;
-  mirror.style.fontSize = cs.fontSize;
-  mirror.style.lineHeight = cs.lineHeight;
-
-  // Render mirror lines to measure wrapped line heights
-  let mirrorHtml = '';
-  for (let i = 0; i < lineCount; i++) {
-    const raw = lines[i];
-    const escaped = raw ? raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '&nbsp;';
-    mirrorHtml += `<div class="mirror-row">${escaped}</div>`;
-  }
-  mirror.innerHTML = mirrorHtml;
-
-  // Measure heights and generate gutter markup
-  const rows = mirror.children;
   const pos = memoTextarea.selectionStart || 0;
   const currentLineIdx = text.substring(0, pos).split('\n').length - 1;
 
   let gutterHtml = '';
-  for (let i = 0; i < lineCount; i++) {
-    const h = rows[i] ? rows[i].offsetHeight : 24;
-    const isActive = (i === currentLineIdx);
-    gutterHtml += `<div class="gutter-line${isActive ? ' active' : ''}" data-line="${i + 1}" style="height: ${h}px; line-height: 24px;" title="클릭하여 ${i + 1}번째 줄 선택">${i + 1}</div>`;
+
+  if (!state.wordWrap) {
+    // When word wrap is OFF, every line is strictly 24px high
+    for (let i = 0; i < lineCount; i++) {
+      const isActive = (i === currentLineIdx);
+      gutterHtml += `<div class="gutter-line${isActive ? ' active' : ''}" data-line="${i + 1}" style="height: 24px; line-height: 24px;" title="클릭하여 ${i + 1}번째 줄 선택">${i + 1}</div>`;
+    }
+  } else {
+    // When word wrap is ON, measure wrapped line heights with mirror
+    const mirror = getMirrorElement();
+    const cs = window.getComputedStyle(memoTextarea);
+    const pl = parseFloat(cs.paddingLeft) || 24;
+    const pr = parseFloat(cs.paddingRight) || 24;
+    const contentWidth = Math.max(60, memoTextarea.clientWidth - pl - pr);
+    mirror.style.width = `${contentWidth}px`;
+    mirror.style.fontFamily = cs.fontFamily;
+    mirror.style.fontSize = cs.fontSize;
+    mirror.style.lineHeight = cs.lineHeight;
+    mirror.style.whiteSpace = 'pre-wrap';
+    mirror.style.wordBreak = 'break-word';
+    mirror.style.overflowWrap = 'break-word';
+
+    // Render mirror lines to measure wrapped line heights
+    let mirrorHtml = '';
+    for (let i = 0; i < lineCount; i++) {
+      const raw = lines[i];
+      const escaped = raw ? raw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '&nbsp;';
+      mirrorHtml += `<div class="mirror-row">${escaped}</div>`;
+    }
+    mirror.innerHTML = mirrorHtml;
+
+    // Measure heights and generate gutter markup
+    const rows = mirror.children;
+    for (let i = 0; i < lineCount; i++) {
+      const h = rows[i] ? rows[i].offsetHeight : 24;
+      const isActive = (i === currentLineIdx);
+      gutterHtml += `<div class="gutter-line${isActive ? ' active' : ''}" data-line="${i + 1}" style="height: ${h}px; line-height: 24px;" title="클릭하여 ${i + 1}번째 줄 선택">${i + 1}</div>`;
+    }
   }
 
   gutterInner.innerHTML = gutterHtml;
@@ -1121,17 +1138,55 @@ function toggleLineNumbers(forceState) {
 }
 
 function updateLineNumbersVisibility() {
-  if (!editorGutter || !btnToggleLineNumbers) return;
+  if (!editorGutter) return;
   if (state.showLineNumbers) {
     editorGutter.classList.remove('hidden');
-    btnToggleLineNumbers.classList.add('active');
-    btnToggleLineNumbers.title = '라인 번호 숨기기 (단축키: Alt+L)';
+    if (btnToggleLineNumbers) {
+      btnToggleLineNumbers.classList.add('active');
+      btnToggleLineNumbers.title = '라인 번호 숨기기 (단축키: Alt+L)';
+    }
+    if (btnFooterLineNumbers) {
+      btnFooterLineNumbers.classList.add('active');
+      btnFooterLineNumbers.title = '줄 번호 끄기 (단축키: Alt+L)';
+    }
     updateLineNumbers();
     highlightActiveLine();
   } else {
     editorGutter.classList.add('hidden');
-    btnToggleLineNumbers.classList.remove('active');
-    btnToggleLineNumbers.title = '라인 번호 표시 (단축키: Alt+L)';
+    if (btnToggleLineNumbers) {
+      btnToggleLineNumbers.classList.remove('active');
+      btnToggleLineNumbers.title = '라인 번호 표시 (단축키: Alt+L)';
+    }
+    if (btnFooterLineNumbers) {
+      btnFooterLineNumbers.classList.remove('active');
+      btnFooterLineNumbers.title = '줄 번호 켜기 (단축키: Alt+L)';
+    }
+  }
+}
+
+function toggleWordWrap(forceState) {
+  state.wordWrap = (typeof forceState === 'boolean') ? forceState : !state.wordWrap;
+  localStorage.setItem('memo_word_wrap', state.wordWrap ? 'true' : 'false');
+  updateWordWrapVisibility();
+}
+
+function updateWordWrapVisibility() {
+  if (!memoTextarea) return;
+  if (state.wordWrap) {
+    memoTextarea.classList.remove('no-wrap');
+    if (btnFooterWordWrap) {
+      btnFooterWordWrap.classList.add('active');
+      btnFooterWordWrap.title = '자동 줄바꿈 끄기 (단축키: Alt+Z)';
+    }
+  } else {
+    memoTextarea.classList.add('no-wrap');
+    if (btnFooterWordWrap) {
+      btnFooterWordWrap.classList.remove('active');
+      btnFooterWordWrap.title = '자동 줄바꿈 켜기 (단축키: Alt+Z)';
+    }
+  }
+  if (state.showLineNumbers) {
+    updateLineNumbers();
   }
 }
 
@@ -1546,6 +1601,18 @@ function setupEventListeners() {
       toggleLineNumbers();
     };
   }
+  if (btnFooterLineNumbers) {
+    btnFooterLineNumbers.onclick = () => {
+      toggleLineNumbers();
+    };
+  }
+
+  // Word Wrap Toggle
+  if (btnFooterWordWrap) {
+    btnFooterWordWrap.onclick = () => {
+      toggleWordWrap();
+    };
+  }
 
   // Footer cursor position click toggles line numbers
   if (cursorPos) {
@@ -1826,6 +1893,12 @@ function setupKeyboardShortcuts() {
         (mod && e.shiftKey && (e.key === 'l' || e.key === 'L' || e.code === 'KeyL'))) {
       e.preventDefault();
       toggleLineNumbers();
+      return;
+    }
+    // Alt + Z (without Ctrl/Cmd): Toggle Word Wrap
+    if (e.altKey && !mod && (e.key === 'z' || e.key === 'Z' || e.code === 'KeyZ')) {
+      e.preventDefault();
+      toggleWordWrap();
       return;
     }
     // Cmd/Ctrl + K: Insert Memo Link
