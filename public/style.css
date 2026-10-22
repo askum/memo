@@ -617,7 +617,7 @@ body, html {
   transition: all 0.2s ease;
 }
 
-.status-badge.saved {
+.status-badge.saved, .status-badge.clean {
   color: var(--status-saved);
   background-color: rgba(16, 185, 129, 0.08);
   border-color: rgba(16, 185, 129, 0.2);

@@ -291,7 +291,7 @@ const server = http.createServer(async (req, res) => {
         return sendJSON(res, 400, { error: '폴더는 직접 열 수 없습니다.' });
       }
       const content = fs.readFileSync(resolved, 'utf-8');
-      return sendJSON(res, 200, { path: resolved, content });
+      return sendJSON(res, 200, { path: resolved, content, mtime: stat.mtimeMs });
     }
 
     // API: Save File Content
@@ -300,7 +300,8 @@ const server = http.createServer(async (req, res) => {
       if (!filePath) return sendJSON(res, 400, { error: 'Path is required' });
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, content ?? '', 'utf-8');
-      return sendJSON(res, 200, { success: true, path: filePath });
+      const stat = fs.statSync(filePath);
+      return sendJSON(res, 200, { success: true, path: filePath, mtime: stat.mtimeMs });
     }
 
     // API: Create File

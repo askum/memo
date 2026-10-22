@@ -8,7 +8,9 @@ let state = {
   selectedNodePath: null,
   saveTimeout: null,
   maxSaveTimeout: null,
-  isDirty: false
+  isDirty: false,
+  lastSavedContent: null,
+  lastSavedTimeStr: ''
 };
 
 // Navigation History
@@ -64,6 +66,20 @@ const btnLinkModalCancel = document.getElementById('btnLinkModalCancel');
 function getDisplayName(name, isDir) {
   if (isDir || !name) return name || '';
   return name.replace(/\.(txt|md|markdown)$/i, '');
+}
+
+// Format timestamp for display
+function formatTime(timestamp) {
+  if (!timestamp) return '';
+  const d = new Date(timestamp);
+  const now = new Date();
+  const isToday = d.toDateString() === now.toDateString();
+  const timePart = d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  if (isToday) {
+    return timePart;
+  }
+  const datePart = `${d.getMonth() + 1}/${d.getDate()}`;
+  return `${datePart} ${timePart}`;
 }
 
 // Theme Manager (Light / Dark Mode)
@@ -308,13 +324,23 @@ async function loadFile(filePath, isNavigatingHistory = false) {
     return true;
   }
 
-  // Auto-save existing file if dirty before loading new one
-  if (state.isDirty && state.currentFilePath) {
+  // Auto-save existing file ONLY IF it was genuinely modified
+  if (state.isDirty && state.currentFilePath && state.lastSavedContent !== null && memoTextarea.value !== state.lastSavedContent) {
     try {
       await saveCurrentFile(false);
     } catch (e) {
       console.warn('Auto-save prior to load failed:', e);
     }
+  }
+
+  // Clear any pending timers from previously open file
+  if (state.saveTimeout) {
+    clearTimeout(state.saveTimeout);
+    state.saveTimeout = null;
+  }
+  if (state.maxSaveTimeout) {
+    clearTimeout(state.maxSaveTimeout);
+    state.maxSaveTimeout = null;
   }
 
   // 1. Fetch file content from server
@@ -337,6 +363,8 @@ async function loadFile(filePath, isNavigatingHistory = false) {
     const previousPath = state.currentFilePath;
     state.currentFilePath = filePath;
     state.isDirty = false;
+    state.lastSavedContent = fileData.content || '';
+    state.lastSavedTimeStr = fileData.mtime ? formatTime(fileData.mtime) : '';
 
     // Track navigation history
     if (!isNavigatingHistory && previousPath && previousPath !== filePath) {
@@ -359,11 +387,12 @@ async function loadFile(filePath, isNavigatingHistory = false) {
     emptyState.classList.add('hidden');
     memoTextarea.classList.remove('hidden');
 
-    memoTextarea.value = fileData.content || '';
-    btnManualSave.disabled = false;
+    memoTextarea.value = state.lastSavedContent;
+    btnManualSave.disabled = true; // Clean loaded file, no unsaved changes!
     btnInsertLink.disabled = false;
 
-    updateSaveStatus('saved');
+    // Display clean state with actual file modification time, without triggering a save
+    updateSaveStatus('clean', state.lastSavedTimeStr);
     updateStats();
     updateCursorPos();
 
@@ -387,7 +416,7 @@ async function loadFile(filePath, isNavigatingHistory = false) {
 async function goBack() {
   if (navHistory.past.length === 0) return;
 
-  if (state.isDirty && state.currentFilePath) {
+  if (state.isDirty && state.currentFilePath && state.lastSavedContent !== null && memoTextarea.value !== state.lastSavedContent) {
     try {
       await saveCurrentFile(false);
     } catch (e) {
@@ -413,7 +442,7 @@ async function goBack() {
 async function goForward() {
   if (navHistory.future.length === 0) return;
 
-  if (state.isDirty && state.currentFilePath) {
+  if (state.isDirty && state.currentFilePath && state.lastSavedContent !== null && memoTextarea.value !== state.lastSavedContent) {
     try {
       await saveCurrentFile(false);
     } catch (e) {
@@ -459,6 +488,14 @@ async function saveCurrentFile(showNotification = true) {
   }
 
   const content = memoTextarea.value;
+
+  // Crucial: If content is identical to what's already saved, skip saving!
+  if (state.lastSavedContent !== null && content === state.lastSavedContent) {
+    state.isDirty = false;
+    updateSaveStatus('clean', state.lastSavedTimeStr);
+    return;
+  }
+
   updateSaveStatus('saving');
 
   try {
@@ -469,10 +506,11 @@ async function saveCurrentFile(showNotification = true) {
     });
 
     if (!res.ok) throw new Error('저장 실패');
+    const data = await res.json().catch(() => ({}));
     state.isDirty = false;
-    const nowTime = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    state.lastSavedContent = content;
+    const nowTime = data.mtime ? formatTime(data.mtime) : new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     updateSaveStatus('saved', nowTime);
-    lastSavedTime.textContent = `마지막 저장: ${nowTime}`;
   } catch (err) {
     console.error('Save error:', err);
     updateSaveStatus('error', err.message);
@@ -482,11 +520,22 @@ async function saveCurrentFile(showNotification = true) {
 
 function updateSaveStatus(status, detail = '') {
   saveStatusBadge.className = 'status-badge ' + status;
-  if (status === 'saved') {
+  if (status === 'clean') {
+    // Unmodified file loaded from disk
+    const timeStr = detail || state.lastSavedTimeStr || '';
+    saveStatusBadge.textContent = timeStr ? `💾 저장됨 (${timeStr})` : `💾 저장됨`;
+    saveStatusBadge.title = timeStr ? `파일이 최신 상태로 보존되어 있습니다 (최종 수정: ${timeStr})` : '파일이 최신 상태로 보존되어 있습니다';
+    saveStatusBadge.onclick = null;
+    lastSavedTime.textContent = timeStr ? `최종 수정: ${timeStr}` : '최신 상태';
+    updateUnsavedIndicators(false);
+  } else if (status === 'saved') {
+    // Actively saved
     const timeStr = detail || new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    state.lastSavedTimeStr = timeStr;
     saveStatusBadge.textContent = `💾 저장됨 (${timeStr})`;
     saveStatusBadge.title = `안전하게 저장되었습니다 (${timeStr})`;
     saveStatusBadge.onclick = null;
+    lastSavedTime.textContent = `마지막 저장: ${timeStr}`;
     updateUnsavedIndicators(false);
   } else if (status === 'saving') {
     saveStatusBadge.textContent = '⏳ 저장 중...';
@@ -702,11 +751,12 @@ function insertLinkIntoTextarea(linkText) {
   memoTextarea.focus();
 
   state.isDirty = true;
-  updateSaveStatus('saving');
+  updateSaveStatus('editing');
+  updateTreeActiveState();
   updateStats();
 
   if (state.saveTimeout) clearTimeout(state.saveTimeout);
-  state.saveTimeout = setTimeout(() => saveCurrentFile(false), 500);
+  state.saveTimeout = setTimeout(() => saveCurrentFile(false), 1000);
 }
 
 function escapeHtml(text) {
@@ -942,10 +992,32 @@ function setupEventListeners() {
 
   // Auto-Save: Debounce (1s idle) + Max Interval (3s continuous)
   memoTextarea.addEventListener('input', () => {
-    state.isDirty = true;
-    updateSaveStatus('editing');
     updateStats();
     updateCursorPos();
+
+    // Check if the content is ACTUALLY different from what's on disk
+    const isActuallyModified = state.lastSavedContent !== null && memoTextarea.value !== state.lastSavedContent;
+
+    if (!isActuallyModified) {
+      // User typed and undid/erased back to the original content!
+      state.isDirty = false;
+      if (state.saveTimeout) {
+        clearTimeout(state.saveTimeout);
+        state.saveTimeout = null;
+      }
+      if (state.maxSaveTimeout) {
+        clearTimeout(state.maxSaveTimeout);
+        state.maxSaveTimeout = null;
+      }
+      updateSaveStatus('clean', state.lastSavedTimeStr);
+      updateTreeActiveState();
+      return;
+    }
+
+    // Genuinely modified
+    state.isDirty = true;
+    updateSaveStatus('editing');
+    updateTreeActiveState();
 
     // 1. Save 1 second after user pauses typing
     if (state.saveTimeout) clearTimeout(state.saveTimeout);
@@ -957,7 +1029,7 @@ function setupEventListeners() {
     if (!state.maxSaveTimeout) {
       state.maxSaveTimeout = setTimeout(() => {
         state.maxSaveTimeout = null;
-        if (state.isDirty) {
+        if (state.isDirty && memoTextarea.value !== state.lastSavedContent) {
           saveCurrentFile(false);
         }
       }, 3000);
