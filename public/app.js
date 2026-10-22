@@ -8,6 +8,7 @@ let state = {
   currentFilePath: null,
   treeData: [],
   selectedNodePath: null,
+  selectedNodeIsDir: false,
   saveTimeout: null,
   maxSaveTimeout: null,
   isDirty: false,
@@ -300,6 +301,13 @@ function createTreeNode(item) {
     btnAdd.textContent = '+📝';
     btnAdd.onclick = (e) => { e.stopPropagation(); promptNewFile(item.path); };
     actions.appendChild(btnAdd);
+
+    const btnAddFolder = document.createElement('button');
+    btnAddFolder.className = 'action-btn';
+    btnAddFolder.title = '이 폴더 안에 새 폴더 생성';
+    btnAddFolder.textContent = '+📁';
+    btnAddFolder.onclick = (e) => { e.stopPropagation(); promptNewFolder(item.path); };
+    actions.appendChild(btnAddFolder);
   }
 
   const btnRename = document.createElement('button');
@@ -342,6 +350,7 @@ function createTreeNode(item) {
   // Row Click
   row.onclick = () => {
     state.selectedNodePath = item.path;
+    state.selectedNodeIsDir = item.isDir;
     if (item.isDir) {
       if (childrenContainer) {
         const isOpen = chevron.classList.toggle('open');
@@ -384,25 +393,34 @@ async function loadFile(filePath, isNavigatingHistory = false) {
     state.maxSaveTimeout = null;
   }
 
-  // 1. Fetch file content from server
+  // 1. Fetch file content from server (with retry in case of sleep/wake reconnect)
   let fileData = null;
-  try {
-    const res = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
-    if (!res.ok) {
-      const errJson = await res.json().catch(() => ({}));
-      throw new Error(errJson.error || '파일을 읽을 수 없습니다.');
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || '파일을 읽을 수 없습니다.');
+      }
+      fileData = await res.json();
+      break;
+    } catch (err) {
+      if (attempt === 0) {
+        await new Promise(r => setTimeout(r, 400));
+        continue;
+      }
+      console.error('Error fetching file:', err);
+      alert('파일을 불러오지 못했습니다: ' + err.message);
+      return false;
     }
-    fileData = await res.json();
-  } catch (err) {
-    console.error('Error fetching file:', err);
-    alert('파일을 불러오지 못했습니다: ' + err.message);
-    return false;
   }
 
   // 2. Safely update UI with loaded content
   try {
     const previousPath = state.currentFilePath;
     state.currentFilePath = filePath;
+    state.selectedNodePath = filePath;
+    state.selectedNodeIsDir = false;
     state.isDirty = false;
     state.lastSavedContent = fileData.content || '';
     state.lastSavedTimeStr = fileData.mtime ? formatTime(fileData.mtime) : '';
@@ -949,9 +967,10 @@ function closeModal() {
 
 function promptNewFile(targetDir) {
   const dir = targetDir || getActiveTargetDir();
+  const folderRel = dir.replace(state.rootFolder, '').replace(/^[\\/]/, '') || '루트 폴더';
   showModal(
     '새 메모 만들기',
-    `생성할 메모 이름을 입력하세요 (예: 회의록, 아이디어):`,
+    `'${folderRel}' 위치에 생성할 메모 이름을 입력하세요 (예: 회의록, 아이디어):`,
     '',
     async (fileName) => {
       if (!fileName.trim()) return;
@@ -974,9 +993,10 @@ function promptNewFile(targetDir) {
 
 function promptNewFolder(targetDir) {
   const dir = targetDir || getActiveTargetDir();
+  const folderRel = dir.replace(state.rootFolder, '').replace(/^[\\/]/, '') || '루트 폴더';
   showModal(
     '새 폴더 만들기',
-    `생성할 폴더 이름을 입력하세요:`,
+    `'${folderRel}' 위치에 생성할 폴더 이름을 입력하세요:`,
     '',
     async (folderName) => {
       if (!folderName.trim()) return;
@@ -1065,7 +1085,13 @@ function promptDelete(targetPath, name, isDir) {
 
 function getActiveTargetDir() {
   if (state.selectedNodePath) {
-    return state.selectedNodePath;
+    if (state.selectedNodeIsDir) {
+      return state.selectedNodePath;
+    }
+    // If selected node is a file, return its parent directory
+    const parts = state.selectedNodePath.split(/[\\/]/);
+    parts.pop();
+    return parts.join('/') || state.rootFolder;
   }
   if (state.currentFilePath) {
     const parts = state.currentFilePath.split(/[\\/]/);
@@ -1629,7 +1655,26 @@ function startHeartbeat() {
     fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
   }
   ping();
-  setInterval(ping, 2000);
+  setInterval(ping, 2500);
+
+  // Ping immediately when user returns to window, switches tab, or wakes from sleep
+  window.addEventListener('focus', ping);
+  window.addEventListener('pageshow', ping);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') ping();
+  });
+
+  // Also ping on user interaction (throttled to at most once per 4 seconds)
+  let lastActivityPing = 0;
+  const onActivity = () => {
+    const now = Date.now();
+    if (now - lastActivityPing > 4000) {
+      lastActivityPing = now;
+      ping();
+    }
+  };
+  window.addEventListener('pointerdown', onActivity, { passive: true });
+  window.addEventListener('keydown', onActivity, { passive: true });
 
   // Send shutdown beacon when window closes
   const sendShutdown = () => {

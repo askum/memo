@@ -20,15 +20,26 @@ if (!fs.existsSync(DEFAULT_MEMOS_DIR)) fs.mkdirSync(DEFAULT_MEMOS_DIR, { recursi
 let lastHeartbeat = Date.now();
 let hasClientEverConnected = false;
 let shutdownTimeout = null;
+let missedHeartbeats = 0;
 
-// Watchdog: check every 2 seconds
-// If client connected at least once and no heartbeat for 5 seconds, exit cleanly
+// Watchdog: check every 3 seconds
+// If client connected at least once and missed 30 consecutive active checks (~90 seconds of no pings and no traffic), exit cleanly
 setInterval(() => {
-  if (hasClientEverConnected && (Date.now() - lastHeartbeat > 5000)) {
-    console.log('\n[INFO] 메모 창이 닫혀 프로그램을 안전하게 종료합니다.');
+  if (!hasClientEverConnected) return;
+
+  const now = Date.now();
+  if (now - lastHeartbeat < 5000) {
+    missedHeartbeats = 0;
+  } else {
+    missedHeartbeats++;
+  }
+
+  // After 30 consecutive missed checks (approx 90 seconds of total silence while system is running)
+  if (missedHeartbeats >= 30) {
+    console.log('\n[INFO] 창이 닫히고 연결이 끊겨 프로그램을 안전하게 종료합니다.');
     process.exit(0);
   }
-}, 2000);
+}, 3000);
 
 // Helper to resolve file path handling Unicode NFC/NFD on macOS
 function resolveFilePath(rawPath) {
@@ -237,6 +248,11 @@ const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
   const pathname = parsedUrl.pathname;
 
+  // Any incoming request indicates the client/app is active
+  hasClientEverConnected = true;
+  lastHeartbeat = Date.now();
+  missedHeartbeats = 0;
+
   // CORS
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
@@ -404,7 +420,18 @@ const server = http.createServer(async (req, res) => {
       fileName = (fileName || '').trim();
       if (!fileName) return sendJSON(res, 400, { error: '파일 이름을 입력하세요.' });
       if (!path.extname(fileName)) fileName += '.txt';
-      const fullPath = path.join(dirPath, fileName);
+
+      let targetDir = dirPath;
+      if (targetDir && fs.existsSync(targetDir)) {
+        const stat = fs.statSync(targetDir);
+        if (!stat.isDirectory()) {
+          targetDir = path.dirname(targetDir);
+        }
+      } else {
+        targetDir = getConfig().rootFolder;
+      }
+
+      const fullPath = path.join(targetDir, fileName);
       if (fs.existsSync(fullPath)) {
         return sendJSON(res, 400, { error: `'${fileName}' 파일이 이미 존재합니다.` });
       }
@@ -417,7 +444,18 @@ const server = http.createServer(async (req, res) => {
       const { dirPath, folderName } = await parseBody(req);
       const name = (folderName || '').trim();
       if (!name) return sendJSON(res, 400, { error: '폴더 이름을 입력하세요.' });
-      const fullPath = path.join(dirPath, name);
+
+      let targetDir = dirPath;
+      if (targetDir && fs.existsSync(targetDir)) {
+        const stat = fs.statSync(targetDir);
+        if (!stat.isDirectory()) {
+          targetDir = path.dirname(targetDir);
+        }
+      } else {
+        targetDir = getConfig().rootFolder;
+      }
+
+      const fullPath = path.join(targetDir, name);
       if (fs.existsSync(fullPath)) {
         return sendJSON(res, 400, { error: `'${name}' 폴더가 이미 존재합니다.` });
       }
