@@ -10,7 +10,7 @@
   <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2">
   <link rel="apple-touch-icon" href="favicon-256.png?v=2">
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
   <div class="app-container">
@@ -87,8 +87,8 @@
         </div>
 
         <div class="editor-actions">
-          <button class="btn btn-secondary btn-sm" id="btnToggleLineNumbers" title="라인 번호 표시/숨기기 (단축키: Alt+L)">
-            🔢 줄 번호
+          <button class="btn btn-secondary btn-sm" id="btnToggleFindReplace" title="찾기 및 바꾸기 (단축키: Cmd+F / Ctrl+F)">
+            🔍 찾기/바꾸기
           </button>
           <button class="btn btn-secondary btn-sm" id="btnInsertLink" disabled title="다른 메모로 이동하는 링크 삽입 (단축키: Cmd+K / Ctrl+K)">
             🔗 링크 삽입
@@ -107,6 +107,37 @@
             <span class="empty-icon">📂</span>
             <h2>메모가 선택되지 않았습니다</h2>
             <p>왼쪽 트리에서 메모를 클릭하여 열거나, <strong>[+ 새 메모]</strong> 버튼을 눌러 새 메모를 시작하세요.</p>
+          </div>
+        </div>
+
+        <!-- Find & Replace Floating Panel -->
+        <div class="find-replace-panel hidden" id="findReplacePanel">
+          <!-- Row 1: Find -->
+          <div class="fr-row">
+            <div class="fr-input-wrap">
+              <span class="fr-icon">🔍</span>
+              <input type="text" id="findInput" class="fr-input" placeholder="찾을 단어..." autocomplete="off" spellcheck="false">
+              <span class="fr-count" id="findCount">0 / 0</span>
+            </div>
+            <div class="fr-btn-group">
+              <button class="btn btn-icon btn-sm fr-tool-btn" id="btnFindMatchCase" title="대/소문자 구분 (Alt+C)">Aa</button>
+              <button class="btn btn-icon btn-sm fr-nav-btn" id="btnFindPrev" title="이전 찾기 (Shift+Enter)">▲</button>
+              <button class="btn btn-icon btn-sm fr-nav-btn" id="btnFindNext" title="다음 찾기 (Enter)">▼</button>
+              <button class="btn btn-icon btn-sm fr-tool-btn" id="btnToggleReplaceMode" title="바꾸기 펼치기/접기 (Ctrl+H)">▾</button>
+              <button class="btn btn-icon btn-sm fr-close-btn" id="btnFindClose" title="닫기 (Esc)">✕</button>
+            </div>
+          </div>
+
+          <!-- Row 2: Replace -->
+          <div class="fr-row fr-replace-row" id="replaceRow">
+            <div class="fr-input-wrap">
+              <span class="fr-icon">✏️</span>
+              <input type="text" id="replaceInput" class="fr-input" placeholder="바꿀 단어..." autocomplete="off" spellcheck="false">
+            </div>
+            <div class="fr-btn-group">
+              <button class="btn btn-secondary btn-sm fr-action-btn" id="btnReplaceOne" title="현재 선택 항목 바꾸기 (Alt+R)">바꾸기</button>
+              <button class="btn btn-secondary btn-sm fr-action-btn" id="btnReplaceAll" title="모두 바꾸기 (Alt+A)">모두 바꾸기</button>
+            </div>
           </div>
         </div>
 
@@ -260,6 +291,16 @@
                 <td><kbd>Alt</kbd> + <kbd>L</kbd></td>
               </tr>
               <tr>
+                <td><strong>단어 찾기 (Find)</strong></td>
+                <td><kbd>Cmd</kbd> + <kbd>F</kbd></td>
+                <td><kbd>Ctrl</kbd> + <kbd>F</kbd></td>
+              </tr>
+              <tr>
+                <td><strong>단어 바꾸기 (Replace)</strong></td>
+                <td><kbd>Cmd</kbd> + <kbd>H</kbd></td>
+                <td><kbd>Ctrl</kbd> + <kbd>H</kbd></td>
+              </tr>
+              <tr>
                 <td><strong>메모 즉시 저장</strong></td>
                 <td><kbd>Cmd</kbd> + <kbd>S</kbd></td>
                 <td><kbd>Ctrl</kbd> + <kbd>S</kbd></td>
@@ -358,6 +399,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

@@ -858,6 +858,123 @@ body, html {
   color: var(--border-color);
 }
 
+/* Find & Replace Floating Panel */
+.find-replace-panel {
+  position: absolute;
+  top: 14px;
+  right: 24px;
+  z-index: 60;
+  width: 390px;
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: frFadeIn 0.15s ease-out;
+}
+
+@keyframes frFadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.find-replace-panel.hidden {
+  display: none !important;
+}
+
+.fr-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fr-replace-row.hidden {
+  display: none !important;
+}
+
+.fr-input-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 3px 8px;
+  transition: border-color 0.15s;
+}
+
+.fr-input-wrap:focus-within {
+  border-color: var(--accent-primary);
+}
+
+.fr-icon {
+  font-size: 12px;
+  margin-right: 6px;
+  opacity: 0.6;
+}
+
+.fr-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: var(--text-primary);
+  font-family: inherit;
+  padding: 2px 0;
+  min-width: 0;
+}
+
+.fr-count {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-left: 6px;
+  user-select: none;
+}
+
+.fr-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.fr-tool-btn, .fr-nav-btn, .fr-close-btn {
+  padding: 4px 7px;
+  font-size: 11px;
+  border-radius: 4px;
+  min-width: 24px;
+}
+
+.fr-tool-btn.active {
+  background-color: var(--accent-subtle);
+  color: var(--accent-primary);
+  font-weight: 700;
+  border-color: var(--accent-primary);
+}
+
+.fr-action-btn {
+  font-size: 12px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+#btnToggleFindReplace.active {
+  background-color: #e0e7ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+[data-theme="dark"] #btnToggleFindReplace.active {
+  background-color: rgba(59, 130, 246, 0.2);
+  border-color: #60a5fa;
+  color: #93c5fd;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -868,6 +985,16 @@ body, html {
   justify-content: center;
   z-index: 100;
   backdrop-filter: blur(2px);
+}
+
+/* Prompt Input Modal (새 메모, 새 폴더, 이름 변경) must always float above any background modal */
+#modalOverlay {
+  z-index: 500 !important;
+}
+
+#modalOverlay .modal-card {
+  z-index: 501;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
 }
 
 .modal-card {

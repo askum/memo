@@ -40,6 +40,7 @@ const btnNavForward = document.getElementById('btnNavForward');
 const fileIcon = document.getElementById('fileIcon');
 const fileTitle = document.getElementById('fileTitle');
 const filePathDisplay = document.getElementById('filePathDisplay');
+const btnToggleFindReplace = document.getElementById('btnToggleFindReplace');
 const btnToggleLineNumbers = document.getElementById('btnToggleLineNumbers');
 const saveStatusBadge = document.getElementById('saveStatusBadge');
 const btnManualSave = document.getElementById('btnManualSave');
@@ -49,6 +50,20 @@ const editorWorkspace = document.getElementById('editorWorkspace');
 const editorGutter = document.getElementById('editorGutter');
 const gutterInner = document.getElementById('gutterInner');
 const memoTextarea = document.getElementById('memoTextarea');
+
+// Find & Replace Elements
+const findReplacePanel = document.getElementById('findReplacePanel');
+const findInput = document.getElementById('findInput');
+const findCount = document.getElementById('findCount');
+const btnFindMatchCase = document.getElementById('btnFindMatchCase');
+const btnFindPrev = document.getElementById('btnFindPrev');
+const btnFindNext = document.getElementById('btnFindNext');
+const btnToggleReplaceMode = document.getElementById('btnToggleReplaceMode');
+const btnFindClose = document.getElementById('btnFindClose');
+const replaceRow = document.getElementById('replaceRow');
+const replaceInput = document.getElementById('replaceInput');
+const btnReplaceOne = document.getElementById('btnReplaceOne');
+const btnReplaceAll = document.getElementById('btnReplaceAll');
 
 const charCount = document.getElementById('charCount');
 const wordCount = document.getElementById('wordCount');
@@ -450,6 +465,8 @@ async function loadFile(filePath, isNavigatingHistory = false) {
     memoTextarea.value = state.lastSavedContent;
     btnManualSave.disabled = true; // Clean loaded file, no unsaved changes!
     btnInsertLink.disabled = false;
+    if (btnToggleFindReplace) btnToggleFindReplace.disabled = false;
+    if (frState.isOpen) executeFind(0);
 
     // Display clean state with actual file modification time, without triggering a save
     updateSaveStatus('clean', state.lastSavedTimeStr);
@@ -754,6 +771,170 @@ async function jumpToMemo(target) {
       }
     }
   }
+}
+
+// --- Find & Replace Logic ---
+let frState = {
+  isOpen: false,
+  isReplaceOpen: false,
+  matchCase: false,
+  matches: [],
+  currentIndex: -1
+};
+
+function openFindPanel(showReplace = false) {
+  if (!state.currentFilePath) return;
+  findReplacePanel.classList.remove('hidden');
+  frState.isOpen = true;
+  if (btnToggleFindReplace) btnToggleFindReplace.classList.add('active');
+
+  if (showReplace) {
+    replaceRow.classList.remove('hidden');
+    frState.isReplaceOpen = true;
+    btnToggleReplaceMode.textContent = '▴';
+  }
+
+  // Pre-fill with current selection if non-empty and single-line
+  const start = memoTextarea.selectionStart;
+  const end = memoTextarea.selectionEnd;
+  if (start !== end) {
+    const selText = memoTextarea.value.substring(start, end);
+    if (!selText.includes('\n') && selText.length < 80) {
+      findInput.value = selText;
+    }
+  }
+
+  if (showReplace && findInput.value.trim()) {
+    replaceInput.focus();
+    replaceInput.select();
+  } else {
+    findInput.focus();
+    findInput.select();
+  }
+
+  executeFind(0);
+}
+
+function closeFindPanel() {
+  if (!findReplacePanel) return;
+  findReplacePanel.classList.add('hidden');
+  frState.isOpen = false;
+  if (btnToggleFindReplace) btnToggleFindReplace.classList.remove('active');
+  memoTextarea.focus();
+}
+
+function toggleReplaceMode() {
+  frState.isReplaceOpen = !frState.isReplaceOpen;
+  if (frState.isReplaceOpen) {
+    replaceRow.classList.remove('hidden');
+    btnToggleReplaceMode.textContent = '▴';
+    replaceInput.focus();
+    replaceInput.select();
+  } else {
+    replaceRow.classList.add('hidden');
+    btnToggleReplaceMode.textContent = '▾';
+    findInput.focus();
+  }
+}
+
+function scrollCharIntoView(charIndex) {
+  const linesBefore = memoTextarea.value.substring(0, charIndex).split('\n');
+  const lineNum = linesBefore.length - 1;
+  const targetTop = lineNum * 24;
+  const currentScroll = memoTextarea.scrollTop;
+  const viewHeight = memoTextarea.clientHeight;
+  if (targetTop < currentScroll || targetTop > currentScroll + viewHeight - 60) {
+    memoTextarea.scrollTop = Math.max(0, targetTop - viewHeight / 2);
+  }
+}
+
+function executeFind(direction = 0) {
+  const query = findInput.value;
+  if (!query) {
+    frState.matches = [];
+    frState.currentIndex = -1;
+    findCount.textContent = '0 / 0';
+    findCount.style.color = '';
+    return;
+  }
+
+  const text = memoTextarea.value;
+  const q = frState.matchCase ? query : query.toLowerCase();
+  const src = frState.matchCase ? text : text.toLowerCase();
+  const matches = [];
+  let idx = src.indexOf(q);
+  while (idx !== -1) {
+    matches.push({ start: idx, end: idx + query.length });
+    idx = src.indexOf(q, idx + 1);
+  }
+  frState.matches = matches;
+
+  if (matches.length === 0) {
+    findCount.textContent = '결과 없음';
+    findCount.style.color = '#ef4444';
+    frState.currentIndex = -1;
+    return;
+  }
+
+  findCount.style.color = '';
+
+  if (direction === 0) {
+    const selStart = memoTextarea.selectionStart;
+    let nextIdx = matches.findIndex(m => m.start >= selStart);
+    if (nextIdx === -1) nextIdx = 0;
+    frState.currentIndex = nextIdx;
+  } else if (direction === 1) {
+    frState.currentIndex = (frState.currentIndex + 1) % matches.length;
+  } else if (direction === -1) {
+    frState.currentIndex = (frState.currentIndex - 1 + matches.length) % matches.length;
+  }
+
+  const cur = matches[frState.currentIndex];
+  findCount.textContent = `${frState.currentIndex + 1} / ${matches.length}`;
+  memoTextarea.setSelectionRange(cur.start, cur.end);
+  scrollCharIntoView(cur.start);
+  updateCursorPos();
+  highlightActiveLine();
+}
+
+function replaceOne() {
+  const query = findInput.value;
+  if (!query || frState.matches.length === 0 || frState.currentIndex === -1) return;
+
+  const cur = frState.matches[frState.currentIndex];
+  const rep = replaceInput.value || '';
+  const text = memoTextarea.value;
+
+  memoTextarea.value = text.substring(0, cur.start) + rep + text.substring(cur.end);
+  memoTextarea.setSelectionRange(cur.start, cur.start + rep.length);
+  memoTextarea.dispatchEvent(new Event('input'));
+  executeFind(0);
+}
+
+function replaceAll() {
+  const query = findInput.value;
+  if (!query) return;
+
+  executeFind(0);
+  if (frState.matches.length === 0) return;
+
+  const count = frState.matches.length;
+  const rep = replaceInput.value || '';
+  const text = memoTextarea.value;
+  let newText = '';
+
+  if (frState.matchCase) {
+    newText = text.split(query).join(rep);
+  } else {
+    const regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    newText = text.replace(regex, rep);
+  }
+
+  memoTextarea.value = newText;
+  memoTextarea.dispatchEvent(new Event('input'));
+  executeFind(0);
+  findCount.textContent = `${count}개 바꿈`;
+  findCount.style.color = '#10b981';
 }
 
 // Open Link Insertion Modal
@@ -1078,6 +1259,10 @@ function promptDelete(targetPath, name, isDir) {
         fileTitle.textContent = '선택된 메모 없음';
         filePathDisplay.textContent = '👈 왼쪽 트리에서 메모 파일을 선택하거나 새로 만드세요';
         btnManualSave.disabled = true;
+        if (btnToggleFindReplace) {
+          btnToggleFindReplace.disabled = true;
+          closeFindPanel();
+        }
       }
       navHistory.past = navHistory.past.filter(p => p !== targetPath && (!isDir || !p.startsWith(targetPath + '/')));
       navHistory.future = navHistory.future.filter(p => p !== targetPath && (!isDir || !p.startsWith(targetPath + '/')));
@@ -1265,7 +1450,8 @@ function setupEventListeners() {
       const origHtml = btnFbNativePicker.innerHTML;
       try {
         btnFbNativePicker.disabled = true;
-        btnFbNativePicker.innerHTML = '⏳ 탐색기 여는 중...';
+        btnFbNativePicker.innerHTML = '⏳ 탐색기 여는 중... (화면 뒤 확인)';
+        btnFbNativePicker.title = '탐색기 창이 메모 앱 뒤에 가려져 있을 수 있습니다. 보이지 않으면 Alt+Tab을 눌러보세요.';
         const res = await fetch('/api/browse-folder', { method: 'POST' });
         const data = await res.json();
         if (data.success && data.rootFolder) {
@@ -1282,6 +1468,7 @@ function setupEventListeners() {
       } finally {
         btnFbNativePicker.disabled = false;
         btnFbNativePicker.innerHTML = origHtml;
+        btnFbNativePicker.title = '시스템 탐색기 창으로 직접 선택';
       }
     };
   }
@@ -1300,6 +1487,54 @@ function setupEventListeners() {
       goForward();
     }
   });
+
+  // Find & Replace Toggle Button
+  if (btnToggleFindReplace) {
+    btnToggleFindReplace.onclick = () => {
+      if (frState.isOpen) closeFindPanel();
+      else openFindPanel(false);
+    };
+  }
+
+  // Find & Replace Panel Listeners
+  if (findInput) {
+    findInput.addEventListener('input', () => executeFind(0));
+    findInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        executeFind(e.shiftKey ? -1 : 1);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeFindPanel();
+      }
+    });
+  }
+
+  if (replaceInput) {
+    replaceInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        replaceOne();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeFindPanel();
+      }
+    });
+  }
+
+  if (btnFindPrev) btnFindPrev.onclick = () => executeFind(-1);
+  if (btnFindNext) btnFindNext.onclick = () => executeFind(1);
+  if (btnToggleReplaceMode) btnToggleReplaceMode.onclick = toggleReplaceMode;
+  if (btnFindClose) btnFindClose.onclick = closeFindPanel;
+  if (btnReplaceOne) btnReplaceOne.onclick = replaceOne;
+  if (btnReplaceAll) btnReplaceAll.onclick = replaceAll;
+  if (btnFindMatchCase) {
+    btnFindMatchCase.onclick = () => {
+      frState.matchCase = !frState.matchCase;
+      btnFindMatchCase.classList.toggle('active', frState.matchCase);
+      executeFind(0);
+    };
+  }
 
   // Link Insertion
   btnInsertLink.onclick = openLinkSelectorModal;
@@ -1543,8 +1778,12 @@ function setupKeyboardShortcuts() {
       return;
     }
 
-    // Escape: Close modals
+    // Escape: Close modals / panels
     if (e.key === 'Escape') {
+      if (frState.isOpen) {
+        closeFindPanel();
+        return;
+      }
       if (folderBrowserModalOverlay && !folderBrowserModalOverlay.classList.contains('hidden')) {
         closeFolderBrowser();
         return;
@@ -1561,6 +1800,19 @@ function setupKeyboardShortcuts() {
         closeModal();
         return;
       }
+    }
+
+    // Cmd/Ctrl + F: Find
+    if (mod && (e.key === 'f' || e.key === 'F' || e.code === 'KeyF')) {
+      e.preventDefault();
+      openFindPanel(false);
+      return;
+    }
+    // Cmd/Ctrl + H: Find & Replace
+    if (mod && (e.key === 'h' || e.key === 'H' || e.code === 'KeyH')) {
+      e.preventDefault();
+      openFindPanel(true);
+      return;
     }
 
     // Cmd/Ctrl + S: Save
