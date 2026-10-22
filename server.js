@@ -173,11 +173,14 @@ function serveStatic(req, res, pathname) {
 
 // Native OS Folder Picker
 function openNativeFolderPicker(currentPath) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     if (process.platform === 'darwin') {
-      const script = `osascript -e 'tell application (path to frontmost application as text) to set myFolder to choose folder with prompt "메모를 저장할 폴더를 선택하세요"' -e 'POSIX path of myFolder'`;
+      const defaultLoc = (currentPath && fs.existsSync(currentPath))
+        ? ` default location (POSIX file "${currentPath.replace(/"/g, '\\"')}")`
+        : '';
+      const script = `osascript -e 'activate' -e 'POSIX path of (choose folder with prompt "메모를 저장할 폴더를 선택하세요"${defaultLoc})'`;
       exec(script, (err, stdout) => {
-        if (err) return resolve(null); // Cancelled or closed
+        if (err) return resolve(null);
         const chosen = stdout.trim();
         resolve(chosen || null);
       });
@@ -269,6 +272,62 @@ const server = http.createServer(async (req, res) => {
         return sendJSON(res, 200, { success: true, rootFolder: picked });
       }
       return sendJSON(res, 200, { success: false, cancelled: true });
+    }
+
+    // API: List Directories for in-app Folder Browser
+    if (pathname === '/api/list-dirs' && req.method === 'GET') {
+      let targetPath = parsedUrl.searchParams.get('path');
+      if (!targetPath || !fs.existsSync(targetPath)) {
+        targetPath = getConfig().rootFolder || os.homedir();
+      }
+      if (!fs.existsSync(targetPath)) {
+        targetPath = os.homedir();
+      }
+
+      try {
+        const stat = fs.statSync(targetPath);
+        if (!stat.isDirectory()) {
+          targetPath = path.dirname(targetPath);
+        }
+      } catch (e) {
+        targetPath = os.homedir();
+      }
+
+      // Quick navigation shortcuts
+      const home = os.homedir();
+      const quickLocations = [
+        { name: '📝 기본 메모 폴더', path: DEFAULT_MEMOS_DIR },
+        { name: '🏠 사용자 홈', path: home },
+        { name: '🖥️ 데스크탑 (바탕화면)', path: path.join(home, 'Desktop') },
+        { name: '📄 문서', path: path.join(home, 'Documents') },
+        { name: '📥 다운로드', path: path.join(home, 'Downloads') }
+      ].filter(loc => fs.existsSync(loc.path));
+
+      let subdirs = [];
+      try {
+        const entries = fs.readdirSync(targetPath, { withFileTypes: true });
+        for (const ent of entries) {
+          if (ent.isDirectory() && !ent.name.startsWith('.')) {
+            subdirs.push({
+              name: ent.name,
+              path: path.join(targetPath, ent.name)
+            });
+          }
+        }
+        subdirs.sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
+      } catch (err) {
+        console.error('List dirs error:', err);
+      }
+
+      const parentPath = path.dirname(targetPath);
+      const hasParent = parentPath && parentPath !== targetPath;
+
+      return sendJSON(res, 200, {
+        currentPath: targetPath,
+        parentPath: hasParent ? parentPath : null,
+        quickLocations,
+        folders: subdirs
+      });
     }
 
     // API: Get Tree

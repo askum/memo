@@ -77,6 +77,24 @@ function closeHelpModal() {
   if (helpModalOverlay) helpModalOverlay.classList.add('hidden');
 }
 
+// Folder Browser Modal Elements
+const folderBrowserModalOverlay = document.getElementById('folderBrowserModalOverlay');
+const fbCurrentPathDisplay = document.getElementById('fbCurrentPathDisplay');
+const fbQuickList = document.getElementById('fbQuickList');
+const fbFolderList = document.getElementById('fbFolderList');
+const btnFbGoUp = document.getElementById('btnFbGoUp');
+const btnFbNewFolder = document.getElementById('btnFbNewFolder');
+const btnFbNativePicker = document.getElementById('btnFbNativePicker');
+const btnFbClose = document.getElementById('btnFbClose');
+const btnFbCancel = document.getElementById('btnFbCancel');
+const btnFbConfirm = document.getElementById('btnFbConfirm');
+
+let fbState = {
+  browsingPath: '',
+  selectedPath: '',
+  parentPath: null
+};
+
 // Helper to hide file extension in UI
 function getDisplayName(name, isDir) {
   if (isDir || !name) return name || '';
@@ -855,6 +873,9 @@ function promptNewFolder(targetDir) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         await loadTree();
+        if (folderBrowserModalOverlay && !folderBrowserModalOverlay.classList.contains('hidden')) {
+          await loadFolderBrowserDirs(fbState.browsingPath);
+        }
       } catch (err) {
         alert(err.message);
       }
@@ -937,41 +958,94 @@ function getActiveTargetDir() {
   return state.rootFolder;
 }
 
-// Change Root Folder
-async function handleChangeFolder() {
-  try {
-    const res = await fetch('/api/browse-folder', { method: 'POST' });
-    const data = await res.json();
-    if (data.success && data.rootFolder) {
-      state.rootFolder = data.rootFolder;
-      updateRootFolderDisplay();
-      await loadTree();
-      return;
-    }
-  } catch (e) {}
+// Visual Folder Browser Functions
+function openFolderBrowser(initialPath) {
+  if (!folderBrowserModalOverlay) return;
+  const start = initialPath || state.rootFolder;
+  fbState.browsingPath = start;
+  fbState.selectedPath = start;
+  folderBrowserModalOverlay.classList.remove('hidden');
+  loadFolderBrowserDirs(start);
+}
 
-  // Fallback to text prompt
-  showModal(
-    '작업 폴더 직접 입력',
-    '메모를 저장할 로컬 폴더의 전체 경로를 입력하세요:',
-    state.rootFolder,
-    async (folderPath) => {
-      if (!folderPath.trim()) return;
-      try {
-        const res = await fetch('/api/config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rootFolder: folderPath.trim() })
+function closeFolderBrowser() {
+  if (folderBrowserModalOverlay) {
+    folderBrowserModalOverlay.classList.add('hidden');
+  }
+}
+
+async function loadFolderBrowserDirs(targetPath) {
+  try {
+    const res = await fetch(`/api/list-dirs?path=${encodeURIComponent(targetPath || '')}`);
+    if (!res.ok) throw new Error('폴더 목록을 불러오지 못했습니다.');
+    const data = await res.json();
+
+    fbState.browsingPath = data.currentPath;
+    fbState.selectedPath = data.currentPath;
+    fbState.parentPath = data.parentPath;
+
+    if (fbCurrentPathDisplay) {
+      fbCurrentPathDisplay.textContent = data.currentPath;
+      fbCurrentPathDisplay.title = data.currentPath;
+    }
+
+    if (btnFbGoUp) {
+      btnFbGoUp.disabled = !data.parentPath;
+    }
+
+    // Render Quick Locations
+    if (fbQuickList) {
+      fbQuickList.innerHTML = '';
+      (data.quickLocations || []).forEach(loc => {
+        const item = document.createElement('div');
+        item.className = 'fb-quick-item' + (loc.path === data.currentPath ? ' active' : '');
+        item.textContent = loc.name;
+        item.title = loc.path;
+        item.onclick = () => loadFolderBrowserDirs(loc.path);
+        fbQuickList.appendChild(item);
+      });
+    }
+
+    // Render Subfolders
+    if (fbFolderList) {
+      fbFolderList.innerHTML = '';
+      if (!data.folders || data.folders.length === 0) {
+        fbFolderList.innerHTML = `
+          <div style="padding: 28px 16px; text-align: center; color: var(--text-muted); font-size: 13px;">
+            이 위치에 하위 폴더가 없습니다.<br>
+            <span style="font-size: 12px; opacity: 0.8; margin-top: 4px; display: inline-block;">현재 폴더를 작업 공간으로 지정하려면 아래 <strong>[✅ 이 폴더로 선택]</strong>을 누르세요.</span>
+          </div>`;
+      } else {
+        data.folders.forEach(f => {
+          const row = document.createElement('div');
+          row.className = 'fb-folder-item';
+          row.innerHTML = `<span style="font-size: 16px;">📁</span> <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(f.name)}</span>`;
+          row.title = `${f.name} (클릭하여 선택, 더블 클릭하여 진입)`;
+
+          row.onclick = () => {
+            document.querySelectorAll('.fb-folder-item').forEach(el => el.classList.remove('selected'));
+            row.classList.add('selected');
+            fbState.selectedPath = f.path;
+            if (fbCurrentPathDisplay) fbCurrentPathDisplay.textContent = f.path;
+          };
+
+          row.ondblclick = (e) => {
+            e.stopPropagation();
+            loadFolderBrowserDirs(f.path);
+          };
+
+          fbFolderList.appendChild(row);
         });
-        const cfg = await res.json();
-        state.rootFolder = cfg.rootFolder;
-        updateRootFolderDisplay();
-        await loadTree();
-      } catch (err) {
-        alert('폴더 설정 실패: ' + err.message);
       }
     }
-  );
+  } catch (err) {
+    console.error('loadFolderBrowserDirs error:', err);
+  }
+}
+
+// Change Root Folder - Opens Visual Folder Browser Screen
+function handleChangeFolder() {
+  openFolderBrowser(state.rootFolder);
 }
 
 // Event Listeners
@@ -994,6 +1068,65 @@ function setupEventListeners() {
   if (helpModalOverlay) {
     helpModalOverlay.onclick = (e) => {
       if (e.target === helpModalOverlay) closeHelpModal();
+    };
+  }
+
+  // Folder Browser Modal Actions
+  if (btnFbClose) btnFbClose.onclick = closeFolderBrowser;
+  if (btnFbCancel) btnFbCancel.onclick = closeFolderBrowser;
+  if (folderBrowserModalOverlay) {
+    folderBrowserModalOverlay.onclick = (e) => {
+      if (e.target === folderBrowserModalOverlay) closeFolderBrowser();
+    };
+  }
+
+  if (btnFbGoUp) {
+    btnFbGoUp.onclick = () => {
+      if (fbState.parentPath) loadFolderBrowserDirs(fbState.parentPath);
+    };
+  }
+
+  if (btnFbNewFolder) {
+    btnFbNewFolder.onclick = () => {
+      promptNewFolder(fbState.browsingPath);
+    };
+  }
+
+  if (btnFbConfirm) {
+    btnFbConfirm.onclick = async () => {
+      const chosen = fbState.selectedPath || fbState.browsingPath;
+      if (!chosen) return;
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rootFolder: chosen })
+        });
+        const cfg = await res.json();
+        state.rootFolder = cfg.rootFolder;
+        updateRootFolderDisplay();
+        await loadTree();
+        closeFolderBrowser();
+      } catch (err) {
+        alert('폴더 설정 실패: ' + err.message);
+      }
+    };
+  }
+
+  if (btnFbNativePicker) {
+    btnFbNativePicker.onclick = async () => {
+      try {
+        const res = await fetch('/api/browse-folder', { method: 'POST' });
+        const data = await res.json();
+        if (data.success && data.rootFolder) {
+          state.rootFolder = data.rootFolder;
+          updateRootFolderDisplay();
+          await loadTree();
+          closeFolderBrowser();
+        }
+      } catch (e) {
+        console.warn('Native picker error:', e);
+      }
     };
   }
 
@@ -1184,6 +1317,10 @@ function setupKeyboardShortcuts() {
 
     // Escape: Close modals
     if (e.key === 'Escape') {
+      if (folderBrowserModalOverlay && !folderBrowserModalOverlay.classList.contains('hidden')) {
+        closeFolderBrowser();
+        return;
+      }
       if (helpModalOverlay && !helpModalOverlay.classList.contains('hidden')) {
         closeHelpModal();
         return;
