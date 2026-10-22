@@ -469,6 +469,7 @@ const server = http.createServer(async (req, res) => {
       if (fs.existsSync(fullPath)) {
         return sendJSON(res, 400, { error: `'${fileName}' 파일이 이미 존재합니다.` });
       }
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, '', 'utf-8');
       return sendJSON(res, 200, { success: true, path: fullPath });
     }

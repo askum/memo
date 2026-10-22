@@ -725,7 +725,7 @@ function findMemoPath(target) {
 
 // Jump to linked memo
 async function jumpToMemo(target) {
-  const cleanTarget = target.trim();
+  const cleanTarget = target.trim().replace(/^\[\[/, '').replace(/\]\]$/, '');
   const matchedPath = findMemoPath(cleanTarget);
 
   if (matchedPath) {
@@ -734,19 +734,23 @@ async function jumpToMemo(target) {
     // Prompt to create target memo if it doesn't exist
     const defaultName = cleanTarget.endsWith('.txt') || cleanTarget.endsWith('.md') ? cleanTarget : `${cleanTarget}.txt`;
     if (confirm(`'${cleanTarget}' 메모를 찾을 수 없습니다.\n새로운 메모로 바로 생성하시겠습니까?`)) {
-      const activeDir = getActiveTargetDir();
+      // If path contains subfolder (e.g. "아이디어/테스트"), create relative to root folder
+      // Otherwise create in active directory
+      const targetBaseDir = (cleanTarget.includes('/') || cleanTarget.includes('\\'))
+        ? state.rootFolder
+        : getActiveTargetDir();
       try {
         const res = await fetch('/api/create-file', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dirPath: activeDir, fileName: defaultName })
+          body: JSON.stringify({ dirPath: targetBaseDir, fileName: defaultName })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         await loadTree();
         await loadFile(data.path);
       } catch (err) {
-        alert(err.message);
+        alert('메모 생성 실패: ' + err.message);
       }
     }
   }
