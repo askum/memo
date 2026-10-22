@@ -7,7 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="apple-touch-icon" href="favicon.png">
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
   <div class="app-container">
@@ -18,9 +18,10 @@
           <img src="favicon-32.png" class="brand-app-icon" alt="메모 아이콘" width="22" height="22">
           <span class="brand-title">Desktop Memo</span>
         </div>
-        <button class="btn btn-icon btn-sm theme-toggle-btn" id="btnThemeToggle" title="테마 변경 (라이트 / 다크)">
-          🌙
-        </button>
+        <div class="header-tools">
+          <button class="btn btn-icon btn-sm header-tool-btn" id="btnThemeToggle" title="테마 변경 (라이트 / 다크)">🌙</button>
+          <button class="btn btn-icon btn-sm header-tool-btn" id="btnHelp" title="기능 안내 및 단축키 (F1)">❓</button>
+        </div>
       </div>
 
       <!-- Current Root Folder Card -->
@@ -117,6 +118,8 @@
           <span id="charCount">0 글자</span>
           <span class="separator">|</span>
           <span id="wordCount">0 단어</span>
+          <span class="separator">|</span>
+          <button class="footer-link-btn" id="btnFooterHelp" title="기능 및 단축키 안내 열기">📖 기능 안내</button>
         </div>
         <div class="footer-right">
           <span id="cursorPos">줄 1, 열 1</span>
@@ -155,6 +158,135 @@
     </div>
   </div>
 
-  <script src="app.js?v=7"></script>
+  <!-- Help & Shortcuts Guide Modal -->
+  <div class="modal-overlay hidden" id="helpModalOverlay">
+    <div class="modal-card help-modal-card">
+      <div class="help-modal-header">
+        <div class="help-title-wrap">
+          <span class="help-icon">📖</span>
+          <h3 class="modal-title">Desktop Memo 기능 안내 & 단축키</h3>
+        </div>
+        <button class="btn btn-icon btn-sm" id="btnHelpModalClose" title="닫기 (Esc)">✕</button>
+      </div>
+      <div class="help-modal-scroll">
+        <!-- Section 1: Features -->
+        <div class="help-section">
+          <h4 class="help-section-title">✨ 주요 기능 안내</h4>
+          <div class="help-grid">
+            <div class="help-card">
+              <div class="help-card-icon">📂</div>
+              <div class="help-card-content">
+                <strong>폴더 & 메모 관리</strong>
+                <p>좌측 탐색기에서 작업 폴더를 선택하고, 새 메모(+📝)와 새 폴더(+📁)를 자유롭게 생성합니다. 마우스 호버 시 이름 변경(✏️)과 삭제(🗑️)가 가능하며, 파일 확장자(.txt)는 자동으로 숨겨져 깔끔하게 제목만 표시됩니다.</p>
+              </div>
+            </div>
+
+            <div class="help-card">
+              <div class="help-card-icon">⚡</div>
+              <div class="help-card-content">
+                <strong>스마트 실시간 자동 저장</strong>
+                <p>타이핑을 시작하면 1초 후 자동으로 안전하게 파일에 저장됩니다. 원본과 내용이 동일할 경우(입력 후 지웠을 때나 메모를 열었을 때)에는 불필요한 저장이 일어나지 않으며, 저장 상태를 우측 상단 배지에서 실시간으로 확인할 수 있습니다.</p>
+              </div>
+            </div>
+
+            <div class="help-card">
+              <div class="help-card-icon">🔗</div>
+              <div class="help-card-content">
+                <strong>메모 간 링크 이동 (위키 링크)</strong>
+                <p>본문에 <code>[[메모제목]]</code> 또는 <code>[[폴더/메모제목]]</code>을 입력한 뒤 <strong>더블 클릭</strong>하면 해당 메모로 즉시 점프합니다. 상단 <strong>[🔗 링크 삽입]</strong> 버튼으로 다른 메모를 검색해 바로 넣을 수도 있습니다.</p>
+              </div>
+            </div>
+
+            <div class="help-card">
+              <div class="help-card-icon">◀ ▶</div>
+              <div class="help-card-content">
+                <strong>방문 기록 탐색 (뒤로/앞으로)</strong>
+                <p>상단 제목 좌측의 <code>◀</code>, <code>▶</code> 버튼이나 단축키로 최근 열람하거나 편집한 메모들을 웹 브라우저처럼 손쉽게 앞뒤로 이동할 수 있습니다.</p>
+              </div>
+            </div>
+
+            <div class="help-card">
+              <div class="help-card-icon">🎨</div>
+              <div class="help-card-content">
+                <strong>열람 / 수정 상태 색상 구분</strong>
+                <p>왼쪽 탐색기에서 <strong>현재 열려 있는 메모는 파란색</strong>으로 강조되고, <strong>작성 및 수정 중인 메모는 따뜻한 오렌지색과 깜빡이는 점(●)</strong>으로 표시되어 저장 여부를 즉시 파악할 수 있습니다.</p>
+              </div>
+            </div>
+
+            <div class="help-card">
+              <div class="help-card-icon">🌓</div>
+              <div class="help-card-content">
+                <strong>다크 모드 / 라이트 모드</strong>
+                <p>좌측 상단 <code>🌙</code>/<code>☀️</code> 버튼을 누르면 언제든 다크 모드와 라이트 모드를 전환할 수 있습니다. 설정은 컴퓨터에 자동 저장되어 다음 실행 시에도 유지됩니다.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Shortcuts Table -->
+        <div class="help-section">
+          <h4 class="help-section-title">⌨️ 키보드 단축키 모음</h4>
+          <table class="help-shortcuts-table">
+            <thead>
+              <tr>
+                <th>기능</th>
+                <th>Mac 단축키</th>
+                <th>Windows 단축키</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>메모 즉시 저장</strong></td>
+                <td><kbd>Cmd</kbd> + <kbd>S</kbd></td>
+                <td><kbd>Ctrl</kbd> + <kbd>S</kbd></td>
+              </tr>
+              <tr>
+                <td><strong>메모 링크 삽입 창 열기</strong></td>
+                <td><kbd>Cmd</kbd> + <kbd>K</kbd></td>
+                <td><kbd>Ctrl</kbd> + <kbd>K</kbd></td>
+              </tr>
+              <tr>
+                <td><strong>이전 메모로 뒤로가기</strong></td>
+                <td><kbd>Cmd</kbd> + <kbd>[</kbd> 또는 <kbd>Alt</kbd> + <kbd>←</kbd></td>
+                <td><kbd>Ctrl</kbd> + <kbd>[</kbd> 또는 <kbd>Alt</kbd> + <kbd>←</kbd></td>
+              </tr>
+              <tr>
+                <td><strong>다음 메모로 앞으로가기</strong></td>
+                <td><kbd>Cmd</kbd> + <kbd>]</kbd> 또는 <kbd>Alt</kbd> + <kbd>→</kbd></td>
+                <td><kbd>Ctrl</kbd> + <kbd>]</kbd> 또는 <kbd>Alt</kbd> + <kbd>→</kbd></td>
+              </tr>
+              <tr>
+                <td><strong>새 메모 생성</strong></td>
+                <td><kbd>Cmd</kbd> + <kbd>N</kbd></td>
+                <td><kbd>Ctrl</kbd> + <kbd>N</kbd></td>
+              </tr>
+              <tr>
+                <td><strong>작업 폴더 변경</strong></td>
+                <td><kbd>Cmd</kbd> + <kbd>O</kbd></td>
+                <td><kbd>Ctrl</kbd> + <kbd>O</kbd></td>
+              </tr>
+              <tr>
+                <td><strong>링크된 메모로 바로 이동</strong></td>
+                <td colspan="2">본문의 <code>[[메모제목]]</code> 텍스트 <strong>더블 클릭</strong></td>
+              </tr>
+              <tr>
+                <td><strong>기능 안내 & 단축키 열기</strong></td>
+                <td colspan="2"><kbd>F1</kbd> 키</td>
+              </tr>
+              <tr>
+                <td><strong>팝업 창 닫기</strong></td>
+                <td colspan="2"><kbd>Esc</kbd> 키</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-buttons" style="margin-top: 16px;">
+        <button class="btn btn-primary" id="btnHelpModalConfirm">확인 (닫기)</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=8"></script>
 </body>
 </html>

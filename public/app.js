@@ -62,6 +62,21 @@ const linkSearchInput = document.getElementById('linkSearchInput');
 const linkItemsList = document.getElementById('linkItemsList');
 const btnLinkModalCancel = document.getElementById('btnLinkModalCancel');
 
+// Help Modal Elements
+const btnHelp = document.getElementById('btnHelp');
+const btnFooterHelp = document.getElementById('btnFooterHelp');
+const helpModalOverlay = document.getElementById('helpModalOverlay');
+const btnHelpModalClose = document.getElementById('btnHelpModalClose');
+const btnHelpModalConfirm = document.getElementById('btnHelpModalConfirm');
+
+function openHelpModal() {
+  if (helpModalOverlay) helpModalOverlay.classList.remove('hidden');
+}
+
+function closeHelpModal() {
+  if (helpModalOverlay) helpModalOverlay.classList.add('hidden');
+}
+
 // Helper to hide file extension in UI
 function getDisplayName(name, isDir) {
   if (isDir || !name) return name || '';
@@ -971,6 +986,17 @@ function setupEventListeners() {
   // Theme Toggle Button
   if (btnThemeToggle) btnThemeToggle.onclick = toggleTheme;
 
+  // Help Modal Actions
+  if (btnHelp) btnHelp.onclick = openHelpModal;
+  if (btnFooterHelp) btnFooterHelp.onclick = openHelpModal;
+  if (btnHelpModalClose) btnHelpModalClose.onclick = closeHelpModal;
+  if (btnHelpModalConfirm) btnHelpModalConfirm.onclick = closeHelpModal;
+  if (helpModalOverlay) {
+    helpModalOverlay.onclick = (e) => {
+      if (e.target === helpModalOverlay) closeHelpModal();
+    };
+  }
+
   // History Navigation Buttons
   if (btnNavBack) btnNavBack.onclick = () => goBack();
   if (btnNavForward) btnNavForward.onclick = () => goForward();
@@ -1148,6 +1174,29 @@ function setupKeyboardShortcuts() {
   window.addEventListener('keydown', (e) => {
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const mod = isMac ? e.metaKey : e.ctrlKey;
+
+    // F1: Open Help Guide
+    if (e.key === 'F1') {
+      e.preventDefault();
+      openHelpModal();
+      return;
+    }
+
+    // Escape: Close modals
+    if (e.key === 'Escape') {
+      if (helpModalOverlay && !helpModalOverlay.classList.contains('hidden')) {
+        closeHelpModal();
+        return;
+      }
+      if (linkModalOverlay && !linkModalOverlay.classList.contains('hidden')) {
+        linkModalOverlay.classList.add('hidden');
+        return;
+      }
+      if (modalOverlay && !modalOverlay.classList.contains('hidden')) {
+        closeModal();
+        return;
+      }
+    }
 
     // Cmd/Ctrl + S: Save
     if (mod && (e.key === 's' || e.key === 'S')) {
