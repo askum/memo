@@ -3,6 +3,7 @@
  */
 const savedLinePref = localStorage.getItem('memo_show_line_numbers');
 const savedWrapPref = localStorage.getItem('memo_word_wrap');
+const savedShowAllFiles = localStorage.getItem('memo_show_all_files');
 
 let state = {
   rootFolder: '',
@@ -16,7 +17,8 @@ let state = {
   lastSavedContent: null,
   lastSavedTimeStr: '',
   showLineNumbers: savedLinePref !== null ? savedLinePref === 'true' : true,
-  wordWrap: savedWrapPref !== null ? savedWrapPref === 'true' : true
+  wordWrap: savedWrapPref !== null ? savedWrapPref === 'true' : true,
+  showAllFiles: savedShowAllFiles === 'true' ? true : false
 };
 
 // Navigation History
@@ -32,6 +34,7 @@ const currentFolderName = document.getElementById('currentFolderName');
 const btnChangeFolder = document.getElementById('btnChangeFolder');
 const btnNewFile = document.getElementById('btnNewFile');
 const btnNewFolder = document.getElementById('btnNewFolder');
+const btnToggleAllFiles = document.getElementById('btnToggleAllFiles');
 const btnRefresh = document.getElementById('btnRefresh');
 const treeSearchInput = document.getElementById('treeSearchInput');
 const treeRoot = document.getElementById('treeRoot');
@@ -54,6 +57,14 @@ const editorWorkspace = document.getElementById('editorWorkspace');
 const editorGutter = document.getElementById('editorGutter');
 const gutterInner = document.getElementById('gutterInner');
 const memoTextarea = document.getElementById('memoTextarea');
+
+// Link Modal Elements
+const linkModalOverlay = document.getElementById('linkModalOverlay');
+const linkSearchInput = document.getElementById('linkSearchInput');
+const linkItemsList = document.getElementById('linkItemsList');
+const btnLinkModalCancel = document.getElementById('btnLinkModalCancel');
+const btnLinkExternalFile = document.getElementById('btnLinkExternalFile');
+const externalFileInput = document.getElementById('externalFileInput');
 
 // Find & Replace Elements
 const findReplacePanel = document.getElementById('findReplacePanel');
@@ -82,12 +93,6 @@ const modalInput = document.getElementById('modalInput');
 const btnModalCancel = document.getElementById('btnModalCancel');
 const btnModalConfirm = document.getElementById('btnModalConfirm');
 let modalCallback = null;
-
-// Link Modal Elements
-const linkModalOverlay = document.getElementById('linkModalOverlay');
-const linkSearchInput = document.getElementById('linkSearchInput');
-const linkItemsList = document.getElementById('linkItemsList');
-const btnLinkModalCancel = document.getElementById('btnLinkModalCancel');
 
 // Help Modal Elements
 const btnHelp = document.getElementById('btnHelp');
@@ -121,6 +126,103 @@ let fbState = {
   selectedPath: '',
   parentPath: null
 };
+
+// Helper: Check if file is a text memo
+function isTextMemo(fileName) {
+  if (!fileName) return false;
+  return /\.(txt|md|markdown)$/i.test(fileName);
+}
+
+// Helper: Get icon based on file type
+function getFileIcon(fileName, isDir) {
+  if (isDir) return '📁';
+  const ext = (fileName || '').split('.').pop().toLowerCase();
+  switch (ext) {
+    case 'xlsx':
+    case 'xls':
+    case 'csv':
+      return '📊';
+    case 'pdf':
+      return '📑';
+    case 'doc':
+    case 'docx':
+      return '📄';
+    case 'ppt':
+    case 'pptx':
+      return '📽️';
+    case 'hwp':
+    case 'hwpx':
+      return '✍️';
+    case 'png':
+    case 'jpg':
+    case 'jpeg':
+    case 'gif':
+    case 'webp':
+    case 'svg':
+      return '🖼️';
+    case 'zip':
+    case 'rar':
+    case '7z':
+    case 'tar':
+    case 'gz':
+      return '📦';
+    case 'mp3':
+    case 'wav':
+    case 'm4a':
+      return '🎵';
+    case 'mp4':
+    case 'mov':
+    case 'avi':
+      return '🎬';
+    case 'txt':
+    case 'md':
+    case 'markdown':
+      return '📝';
+    default:
+      return '📎';
+  }
+}
+
+// Toast notification helper
+function showToast(msg) {
+  let toast = document.getElementById('appToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'appToast';
+    toast.className = 'app-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => {
+    toast.classList.remove('show');
+  }, 2500);
+}
+
+// Open file or URL with external program
+async function openExternalLink(target) {
+  const currentDir = state.currentFilePath 
+    ? state.currentFilePath.replace(/\\/g, '/').split('/').slice(0, -1).join('/') 
+    : state.rootFolder;
+
+  try {
+    const res = await fetch('/api/open-external', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target, currentDir })
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      const fileName = target.split(/[\\/]/).pop();
+      showToast(`🚀 '${fileName}' 파일을 별도 프로그램으로 열었습니다.`);
+    } else {
+      alert(data.error || `'${target}' 파일을 열 수 없습니다.`);
+    }
+  } catch (err) {
+    alert(`파일 실행 중 오류가 발생했습니다: ${err.message}`);
+  }
+}
 
 // Helper to hide file extension in UI
 function getDisplayName(name, isDir) {
@@ -184,9 +286,23 @@ function toggleTheme() {
   applyTheme(next, true);
 }
 
+function updateFileFilterBtn() {
+  if (!btnToggleAllFiles) return;
+  if (state.showAllFiles) {
+    btnToggleAllFiles.textContent = '🗂️ 전체';
+    btnToggleAllFiles.classList.add('active');
+    btnToggleAllFiles.title = '파일 보기 필터: 모든 파일 표시 중 (클릭시 txt 메모만 보기)';
+  } else {
+    btnToggleAllFiles.textContent = '📄 txt';
+    btnToggleAllFiles.classList.remove('active');
+    btnToggleAllFiles.title = '파일 보기 필터: txt 메모만 표시 중 (클릭시 모든 파일 보기)';
+  }
+}
+
 // Init Application
 async function init() {
   initTheme();
+  updateFileFilterBtn();
   updateWordWrapVisibility();
   updateLineNumbersVisibility();
   setupSplitter();
@@ -228,20 +344,39 @@ async function loadTree() {
   }
 }
 
+// Filter tree items based on txt-only vs show-all preference
+function filterTreeItems(items) {
+  if (state.showAllFiles) return items || [];
+  return (items || [])
+    .filter(item => item.isDir || isTextMemo(item.name))
+    .map(item => {
+      if (item.isDir && item.children) {
+        return {
+          ...item,
+          children: filterTreeItems(item.children)
+        };
+      }
+      return item;
+    });
+}
+
 // Render Tree View
 function renderTree(items, containerElement) {
   containerElement.innerHTML = '';
-  if (!items || items.length === 0) {
+  const displayItems = filterTreeItems(items);
+  if (!displayItems || displayItems.length === 0) {
     const empty = document.createElement('div');
     empty.style.padding = '16px 12px';
     empty.style.color = 'var(--text-muted)';
     empty.style.fontSize = '12px';
-    empty.textContent = '폴더가 비어 있습니다. [+ 새 메모]를 눌러보세요.';
+    empty.textContent = state.showAllFiles 
+      ? '폴더가 비어 있습니다. [+ 새 메모]를 눌러보세요.' 
+      : '표시할 txt 메모가 없습니다. [+ 새 메모]를 누르거나 상단 [📄 txt]를 눌러 전체 파일을 확인하세요.';
     containerElement.appendChild(empty);
     return;
   }
 
-  items.forEach(item => {
+  displayItems.forEach(item => {
     const node = createTreeNode(item);
     containerElement.appendChild(node);
   });
@@ -298,11 +433,11 @@ function createTreeNode(item) {
   // Icon
   const icon = document.createElement('span');
   icon.className = 'tree-item-icon';
-  icon.textContent = item.isDir ? '📁' : '📝';
+  icon.textContent = getFileIcon(item.name, item.isDir);
   row.appendChild(icon);
 
-  // Label (without extension)
-  const cleanLabelName = getDisplayName(item.name, item.isDir);
+  // Label (without extension for text memos, with extension for external files)
+  const cleanLabelName = isTextMemo(item.name) ? getDisplayName(item.name, item.isDir) : item.name;
   const label = document.createElement('span');
   label.className = 'tree-item-label';
   label.textContent = cleanLabelName;
@@ -352,8 +487,9 @@ function createTreeNode(item) {
   if (item.isDir) {
     childrenContainer = document.createElement('div');
     childrenContainer.className = 'tree-children';
-    if (item.children && item.children.length > 0) {
-      item.children.forEach(child => {
+    const childItems = filterTreeItems(item.children || []);
+    if (childItems.length > 0) {
+      childItems.forEach(child => {
         childrenContainer.appendChild(createTreeNode(child));
       });
     }
@@ -378,7 +514,11 @@ function createTreeNode(item) {
         icon.textContent = isOpen ? '📁' : '📂';
       }
     } else {
-      loadFile(item.path);
+      if (isTextMemo(item.name)) {
+        loadFile(item.path);
+      } else {
+        openExternalLink(item.path);
+      }
     }
   };
 
@@ -684,15 +824,29 @@ function updateUnsavedIndicators(isUnsaved) {
 
 // --- Memo Link Interlinking & Preview Features ---
 
-// Recursively get all memo files in tree
+// Recursively get all memo files in tree (.txt / .md)
 function getAllMemoFiles(items, result = []) {
   if (!items) return result;
   items.forEach(item => {
-    if (!item.isDir) {
+    if (!item.isDir && isTextMemo(item.name)) {
       result.push({ name: item.name, path: item.path });
     }
     if (item.children) {
       getAllMemoFiles(item.children, result);
+    }
+  });
+  return result;
+}
+
+// Recursively get all files (memos + external files like .xlsx, .pdf, etc.)
+function getAllFiles(items, result = []) {
+  if (!items) return result;
+  items.forEach(item => {
+    if (!item.isDir) {
+      result.push({ name: item.name, path: item.path, isText: isTextMemo(item.name) });
+    }
+    if (item.children) {
+      getAllFiles(item.children, result);
     }
   });
   return result;
@@ -745,14 +899,40 @@ function findMemoPath(target) {
   return null;
 }
 
-// Jump to linked memo
+// Jump to linked memo or launch external file (.xlsx, .pdf, etc.) in system application
 async function jumpToMemo(target) {
   const cleanTarget = target.trim().replace(/^\[\[/, '').replace(/\]\]$/, '');
+  if (!cleanTarget) return;
+
+  const isUrl = /^https?:\/\//i.test(cleanTarget);
+  const ext = cleanTarget.includes('.') ? cleanTarget.split('.').pop().toLowerCase() : '';
+  const isExternalExt = /^(xlsx?|csv|pdf|docx?|pptx?|hwp|hwpx|png|jpe?g|gif|webp|svg|zip|rar|7z|tar|gz|mp4|mov|avi|mp3|wav|m4a|exe|msi)$/i.test(ext);
+
+  // If it's a URL or known non-text file extension -> open with OS default application!
+  if (isUrl || isExternalExt) {
+    await openExternalLink(cleanTarget);
+    return;
+  }
+
+  // Otherwise search for a text memo (.txt / .md)
   const matchedPath = findMemoPath(cleanTarget);
 
   if (matchedPath) {
     await loadFile(matchedPath);
   } else {
+    // Check if an external file exists in the folder tree with this name
+    const allExtFiles = getAllFiles(state.treeData);
+    const foundExt = allExtFiles.find(f => {
+      const fName = f.name.toLowerCase();
+      const targetLower = cleanTarget.toLowerCase();
+      return fName === targetLower || fName.startsWith(targetLower + '.');
+    });
+
+    if (foundExt && !isTextMemo(foundExt.name)) {
+      await openExternalLink(foundExt.path);
+      return;
+    }
+
     // Prompt to create target memo if it doesn't exist
     const defaultName = cleanTarget.endsWith('.txt') || cleanTarget.endsWith('.md') ? cleanTarget : `${cleanTarget}.txt`;
     if (confirm(`'${cleanTarget}' 메모를 찾을 수 없습니다.\n새로운 메모로 바로 생성하시겠습니까?`)) {
@@ -944,7 +1124,7 @@ function replaceAll() {
 
 // Open Link Insertion Modal
 function openLinkSelectorModal() {
-  const allFiles = getAllMemoFiles(state.treeData).filter(f => f.path !== state.currentFilePath);
+  const allFiles = getAllFiles(state.treeData).filter(f => f.path !== state.currentFilePath);
   linkSearchInput.value = '';
   renderLinkItems(allFiles);
   linkModalOverlay.classList.remove('hidden');
@@ -960,27 +1140,28 @@ function openLinkSelectorModal() {
 function renderLinkItems(files) {
   linkItemsList.innerHTML = '';
   if (files.length === 0) {
-    linkItemsList.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 12px;">일치하는 메모가 없습니다.</div>';
+    linkItemsList.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 12px;">일치하는 메모나 파일이 없습니다.</div>';
     return;
   }
 
   // Count duplicate names to automatically qualify with folder path if needed
   const nameCounts = {};
   files.forEach(f => {
-    const c = getDisplayName(f.name, false);
+    const c = f.isText ? getDisplayName(f.name, false) : f.name;
     nameCounts[c] = (nameCounts[c] || 0) + 1;
   });
 
   files.forEach(file => {
     const row = document.createElement('div');
     row.className = 'link-item-row';
-    const cleanName = getDisplayName(file.name, false);
-    const relPath = getDisplayName(file.path.replace(state.rootFolder, '').replace(/^[\\/]/, ''), false);
+    const cleanName = file.isText ? getDisplayName(file.name, false) : file.name;
+    const relPath = file.path.replace(state.rootFolder, '').replace(/^[\\/]/, '');
     const hasDuplicate = nameCounts[cleanName] > 1;
     const linkToInsert = hasDuplicate ? relPath : cleanName;
+    const icon = getFileIcon(file.name, false);
 
     row.innerHTML = `
-      <span style="font-size: 14px;">📝</span>
+      <span style="font-size: 14px;">${icon}</span>
       <span class="link-item-name">${escapeHtml(cleanName)}</span>
       <span class="link-item-path">${escapeHtml(relPath)}</span>
     `;
@@ -1595,6 +1776,59 @@ function setupEventListeners() {
   btnInsertLink.onclick = openLinkSelectorModal;
   btnLinkModalCancel.onclick = () => linkModalOverlay.classList.add('hidden');
 
+  // External File Link Selection in Modal
+  if (btnLinkExternalFile && externalFileInput) {
+    btnLinkExternalFile.onclick = () => {
+      externalFileInput.click();
+    };
+    externalFileInput.onchange = () => {
+      if (externalFileInput.files && externalFileInput.files.length > 0) {
+        const links = [];
+        for (let i = 0; i < externalFileInput.files.length; i++) {
+          const f = externalFileInput.files[i];
+          links.push(`[[${f.name}]]`);
+        }
+        insertLinkIntoTextarea(links.join('\n'));
+        linkModalOverlay.classList.add('hidden');
+        showToast(`📎 ${links.length}개 파일 링크가 본문에 삽입되었습니다.`);
+      }
+      externalFileInput.value = '';
+    };
+  }
+
+  // File Filter Toggle (txt only vs all files)
+  if (btnToggleAllFiles) {
+    btnToggleAllFiles.onclick = () => {
+      state.showAllFiles = !state.showAllFiles;
+      localStorage.setItem('memo_show_all_files', state.showAllFiles ? 'true' : 'false');
+      updateFileFilterBtn();
+      renderTree(state.treeData, treeRoot);
+    };
+  }
+
+  // Drag and drop files directly onto memo textarea to link
+  memoTextarea.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    memoTextarea.classList.add('drag-over');
+  });
+  memoTextarea.addEventListener('dragleave', (e) => {
+    e.preventDefault();
+    memoTextarea.classList.remove('drag-over');
+  });
+  memoTextarea.addEventListener('drop', (e) => {
+    e.preventDefault();
+    memoTextarea.classList.remove('drag-over');
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const links = [];
+      for (let i = 0; i < e.dataTransfer.files.length; i++) {
+        const f = e.dataTransfer.files[i];
+        links.push(`[[${f.name}]]`);
+      }
+      insertLinkIntoTextarea(links.join('\n'));
+      showToast(`📎 ${links.length}개 파일 링크가 본문에 삽입되었습니다.`);
+    }
+  });
+
   // Line Numbers Toggle
   if (btnToggleLineNumbers) {
     btnToggleLineNumbers.onclick = () => {
@@ -1761,13 +1995,14 @@ function setupEventListeners() {
   };
 }
 
-// Detect [[link]] or [label](target) under cursor on double-click or Cmd/Ctrl+Click
+// Detect [[link]], [label](target), or path under cursor on double-click or Cmd/Ctrl+Click
 function handleTextareaLinkClick() {
   const pos = memoTextarea.selectionStart;
   const val = memoTextarea.value;
   const before = val.substring(0, pos);
   const after = val.substring(pos);
 
+  // 1. [[target]] Wiki link
   const openBracket = before.lastIndexOf('[[');
   const closeBracket = after.indexOf(']]');
 
@@ -1783,7 +2018,7 @@ function handleTextareaLinkClick() {
     }
   }
 
-  // Markdown link [title](target)
+  // 2. Markdown link [title](target)
   const mdMatches = [...val.matchAll(/\[(.*?)\]\((.*?)\)/g)];
   for (const m of mdMatches) {
     const start = m.index;
@@ -1792,6 +2027,28 @@ function handleTextareaLinkClick() {
       const target = m[2].trim();
       if (target) {
         jumpToMemo(target);
+        return;
+      }
+    }
+  }
+
+  // 3. Plain URL or file path/name under cursor
+  const lineStart = before.lastIndexOf('\n') + 1;
+  const nextNewline = after.indexOf('\n');
+  const lineEnd = nextNewline === -1 ? val.length : pos + nextNewline;
+  const lineText = val.substring(lineStart, lineEnd);
+  const colInLine = pos - lineStart;
+
+  const words = lineText.split(/\s+/);
+  let charCount = 0;
+  for (const w of words) {
+    const wStart = lineText.indexOf(w, charCount);
+    const wEnd = wStart + w.length;
+    charCount = wEnd;
+    if (colInLine >= wStart && colInLine <= wEnd) {
+      const cleanW = w.replace(/^[<("'{\[]+|[>)"'}\],.]+$/g, '');
+      if (/^https?:\/\//i.test(cleanW) || /\.(xlsx?|csv|pdf|docx?|pptx?|hwp|hwpx|png|jpe?g|gif|webp|svg|zip)$/i.test(cleanW)) {
+        jumpToMemo(cleanW);
         return;
       }
     }

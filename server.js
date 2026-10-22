@@ -104,6 +104,62 @@ function scanDirectory(dirPath) {
   return results;
 }
 
+// Recursively find a file with exact or case-insensitive matching name inside a directory
+function findFileInDir(dir, targetName) {
+  if (!fs.existsSync(dir)) return null;
+  const targetLower = targetName.toLowerCase();
+  try {
+    const list = fs.readdirSync(dir);
+    for (const item of list) {
+      if (item.startsWith('.') || item === 'node_modules') continue;
+      const full = path.join(dir, item);
+      const stat = fs.statSync(full);
+      if (stat.isDirectory()) {
+        const found = findFileInDir(full, targetName);
+        if (found) return found;
+      } else {
+        if (item.toLowerCase() === targetLower) return full;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
+// Open file or URL with default system application (Excel, PDF viewer, Word, Browser, etc.)
+function openExternalFile(filePathOrUrl) {
+  return new Promise((resolve) => {
+    const isUrl = /^https?:\/\//i.test(filePathOrUrl);
+    if (!isUrl && !fs.existsSync(filePathOrUrl)) {
+      return resolve({ success: false, error: '파일을 찾을 수 없습니다: ' + filePathOrUrl });
+    }
+
+    if (process.platform === 'win32') {
+      const cmd = `cmd.exe /c start "" "${filePathOrUrl.replace(/"/g, '""')}"`;
+      exec(cmd, { windowsHide: true }, (err) => {
+        if (err) {
+          const ps = `powershell -NoProfile -Command "Start-Process '${filePathOrUrl.replace(/'/g, "''")}'"`;
+          exec(ps, (err2) => {
+            if (err2) return resolve({ success: false, error: err2.message });
+            resolve({ success: true });
+          });
+        } else {
+          resolve({ success: true });
+        }
+      });
+    } else if (process.platform === 'darwin') {
+      exec(`open "${filePathOrUrl.replace(/"/g, '\\"')}"`, (err) => {
+        if (err) return resolve({ success: false, error: err.message });
+        resolve({ success: true });
+      });
+    } else {
+      exec(`xdg-open "${filePathOrUrl.replace(/"/g, '\\"')}"`, (err) => {
+        if (err) return resolve({ success: false, error: err.message });
+        resolve({ success: true });
+      });
+    }
+  });
+}
+
 // JSON Helper
 function sendJSON(res, statusCode, data) {
   res.writeHead(statusCode, {
@@ -509,6 +565,45 @@ const server = http.createServer(async (req, res) => {
         fs.unlinkSync(targetPath);
       }
       return sendJSON(res, 200, { success: true });
+    }
+
+    // API: Open External File or URL with OS default application (Excel, PDF viewer, Word, etc.)
+    if (pathname === '/api/open-external' && req.method === 'POST') {
+      const { target, currentDir } = await parseBody(req);
+      if (!target) return sendJSON(res, 400, { error: 'Target is required' });
+
+      let resolvedTarget = target.trim();
+      const isUrl = /^https?:\/\//i.test(resolvedTarget);
+
+      if (!isUrl) {
+        resolvedTarget = resolvedTarget.replace(/^file:\/\/\/?/i, '');
+        try { resolvedTarget = decodeURIComponent(resolvedTarget); } catch (e) {}
+
+        const rootDir = getConfig().rootFolder;
+
+        if (fs.existsSync(resolvedTarget)) {
+          // Absolute path already valid
+        } else if (currentDir && fs.existsSync(path.join(currentDir, resolvedTarget))) {
+          resolvedTarget = path.join(currentDir, resolvedTarget);
+        } else if (fs.existsSync(path.join(rootDir, resolvedTarget))) {
+          resolvedTarget = path.join(rootDir, resolvedTarget);
+        } else {
+          // Search recursively in rootFolder
+          const found = findFileInDir(rootDir, path.basename(resolvedTarget));
+          if (found) {
+            resolvedTarget = found;
+          } else {
+            return sendJSON(res, 404, { error: `'${path.basename(resolvedTarget)}' 파일을 찾을 수 없습니다.` });
+          }
+        }
+      }
+
+      const result = await openExternalFile(resolvedTarget);
+      if (result.success) {
+        return sendJSON(res, 200, { success: true, openedPath: resolvedTarget });
+      } else {
+        return sendJSON(res, 500, { error: result.error || '프로그램 실행에 실패했습니다.' });
+      }
     }
 
     // Static Assets
