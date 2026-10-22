@@ -16,30 +16,8 @@ const DEFAULT_MEMOS_DIR = path.join(__dirname, 'memos');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(DEFAULT_MEMOS_DIR)) fs.mkdirSync(DEFAULT_MEMOS_DIR, { recursive: true });
 
-// Heartbeat & Auto-Shutdown tracking
-let lastHeartbeat = Date.now();
-let hasClientEverConnected = false;
+// Shutdown tracking on window close
 let shutdownTimeout = null;
-let missedHeartbeats = 0;
-
-// Watchdog: check every 3 seconds
-// If client connected at least once and missed 30 consecutive active checks (~90 seconds of no pings and no traffic), exit cleanly
-setInterval(() => {
-  if (!hasClientEverConnected) return;
-
-  const now = Date.now();
-  if (now - lastHeartbeat < 5000) {
-    missedHeartbeats = 0;
-  } else {
-    missedHeartbeats++;
-  }
-
-  // After 30 consecutive missed checks (approx 90 seconds of total silence while system is running)
-  if (missedHeartbeats >= 30) {
-    console.log('\n[INFO] 창이 닫히고 연결이 끊겨 프로그램을 안전하게 종료합니다.');
-    process.exit(0);
-  }
-}, 3000);
 
 // Helper to resolve file path handling Unicode NFC/NFD on macOS
 function resolveFilePath(rawPath) {
@@ -277,11 +255,6 @@ const server = http.createServer(async (req, res) => {
   const parsedUrl = new URL(req.url, `http://${req.headers.host}`);
   const pathname = parsedUrl.pathname;
 
-  // Any incoming request indicates the client/app is active
-  hasClientEverConnected = true;
-  lastHeartbeat = Date.now();
-  missedHeartbeats = 0;
-
   // CORS
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
@@ -293,10 +266,8 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    // API: Heartbeat
+    // API: Heartbeat (Cancels any pending shutdown timer on window refresh)
     if (pathname === '/api/heartbeat' && req.method === 'POST') {
-      hasClientEverConnected = true;
-      lastHeartbeat = Date.now();
       if (shutdownTimeout) {
         clearTimeout(shutdownTimeout);
         shutdownTimeout = null;
@@ -306,12 +277,12 @@ const server = http.createServer(async (req, res) => {
 
     // API: Shutdown Beacon on Window Close
     if (pathname === '/api/shutdown' && req.method === 'POST') {
-      console.log('[INFO] 브라우저 창 닫힘 신호 수신. 잠시 후 종료합니다.');
+      console.log('[INFO] 브라우저 창 닫힘 신호 수신. 3초 후 서버를 안전하게 종료합니다.');
       if (shutdownTimeout) clearTimeout(shutdownTimeout);
       shutdownTimeout = setTimeout(() => {
         console.log('[INFO] 프로그램을 종료합니다.');
         process.exit(0);
-      }, 1500);
+      }, 3000);
       return sendJSON(res, 200, { ok: true });
     }
 
@@ -559,6 +530,18 @@ function openBrowser(url) {
     exec(`google-chrome --app="${url}" || xdg-open "${url}"`);
   }
 }
+
+// Handle port collision gracefully (reuse existing instance)
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`[INFO] Desktop Memo가 이미 실행 중입니다 (포트 ${PORT}). 브라우저 창을 엽니다.`);
+    openBrowser(`http://localhost:${PORT}`);
+    process.exit(0);
+  } else {
+    console.error('서버 오류:', err);
+    process.exit(1);
+  }
+});
 
 // Start server
 server.listen(PORT, () => {
