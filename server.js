@@ -11,7 +11,11 @@ const PORT = process.env.PORT || 3333;
 const DATA_DIR = path.join(__dirname, 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 const DEFAULT_MEMOS_DIR = path.join(__dirname, 'memos');
-const APP_VERSION = 'v1.0.0';
+let APP_VERSION = 'v1.0.1';
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8'));
+  APP_VERSION = 'v' + (pkg.version || '1.0.1');
+} catch (e) {}
 
 // Ensure directories exist
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -31,26 +35,92 @@ function resolveFilePath(rawPath) {
   return null;
 }
 
+// Auto-repair garbled folder/file names resulting from Windows CP949/Latin-1 zip extraction
+function repairGarbledEntries(folder) {
+  if (!fs.existsSync(folder)) return;
+  try {
+    const entries = fs.readdirSync(folder);
+    for (const entry of entries) {
+      if (entry.startsWith('.')) continue;
+      const full = path.join(folder, entry);
+      const isDir = fs.statSync(full).isDirectory();
+
+      let targetName = null;
+      if (isDir) {
+        if (entry.includes('媛쒖씤') || entry.includes('媛') || (entry.includes('씤') && !entry.includes('개인'))) {
+          targetName = '개인';
+        } else if (entry.includes('뾽') || entry.includes('몮臾') || (entry.includes('臾') && !entry.includes('업무'))) {
+          targetName = '업무';
+        }
+      } else {
+        if (entry.includes('뀒') || entry.includes('í') || (entry.includes('듃') && !entry.includes('테스트'))) {
+          targetName = '테스트.txt';
+        } else if (entry.includes('í') || entry.includes('ë') || (entry.includes('í') && !entry.includes('환영합니다'))) {
+          targetName = '환영합니다.txt';
+        }
+      }
+
+      if (targetName && targetName !== entry) {
+        const dest = path.join(folder, targetName);
+        if (!fs.existsSync(dest)) {
+          fs.renameSync(full, dest);
+          console.log(`[Auto-Repair] Renamed garbled: '${entry}' -> '${targetName}'`);
+        }
+      }
+
+      // Check subdirectories
+      if (isDir) {
+        const subPath = targetName ? path.join(folder, targetName) : full;
+        repairGarbledEntries(subPath);
+      }
+    }
+  } catch (err) {
+    console.error('Auto-repair warning:', err.message);
+  }
+}
+
 // Ensure initial seed files
 function ensureSeedFiles(folder) {
   if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
-  const entries = fs.readdirSync(folder).filter(f => !f.startsWith('.'));
-  if (entries.length === 0) {
-    fs.mkdirSync(path.join(folder, '업무'), { recursive: true });
-    fs.mkdirSync(path.join(folder, '개인'), { recursive: true });
-    fs.mkdirSync(path.join(folder, '아이디어'), { recursive: true });
-    const welcomeText = `📝 데스크톱 메모장에 오신 것을 환영합니다!
 
-왼쪽 창에서 폴더를 지정하고, 원하는 위치에 파일이나 새 폴더를 바로 만들어보세요.
+  // 1. Repair any garbled names from zip extraction
+  repairGarbledEntries(folder);
 
-📌 주요 기능:
-1. 폴더 선택: 좌측 상단 [폴더 변경] 버튼으로 원하는 메모 저장 위치를 지정할 수 있습니다.
-2. 새 메모 생성: [+ 📝 새 메모] 버튼을 누르면 새 메모가 생성됩니다.
-3. 새 폴더 생성: [+ 📁 새 폴더] 버튼으로 하위 폴더를 자유롭게 만듭니다.
-4. 메모 간 이동: 본문에 [[회의록]] 같은 링크를 적어두고 더블 클릭하면 바로 이동합니다.
-5. 실시간 자동 저장: 우측 창에서 메모를 입력하면 파일로 즉시 자동 저장됩니다.
-`;
-    fs.writeFileSync(path.join(folder, '환영합니다.txt'), welcomeText, 'utf-8');
+  // 2. Ensure standard folders and files exist
+  const personalDir = path.join(folder, '개인');
+  const workDir = path.join(folder, '업무');
+  const personalTest = path.join(personalDir, '테스트.txt');
+  const workTest = path.join(workDir, '테스트.txt');
+  const welcomeFile = path.join(folder, '환영합니다.txt');
+
+  if (!fs.existsSync(personalDir)) fs.mkdirSync(personalDir, { recursive: true });
+  if (!fs.existsSync(workDir)) fs.mkdirSync(workDir, { recursive: true });
+
+  if (!fs.existsSync(personalTest)) {
+    const src = path.join(DEFAULT_MEMOS_DIR, '개인', '테스트.txt');
+    if (fs.existsSync(src)) {
+      fs.copyFileSync(src, personalTest);
+    } else {
+      fs.writeFileSync(personalTest, `📝 개인 메모 테스트\n\n이 메모는 [개인] 폴더의 예시 메모입니다.\n개인적인 생각, 일기, 학습 노트 등을 자유롭게 기록해 보세요.\n\n---\n\n📌 다른 메모로 이동하기 (더블 클릭):\n- 시작 안내문: [[환영합니다]]\n- 업무 메모: [[업무/테스트]]\n`, 'utf-8');
+    }
+  }
+
+  if (!fs.existsSync(workTest)) {
+    const src = path.join(DEFAULT_MEMOS_DIR, '업무', '테스트.txt');
+    if (fs.existsSync(src)) {
+      fs.copyFileSync(src, workTest);
+    } else {
+      fs.writeFileSync(workTest, `📝 업무 메모 테스트\n\n이 메모는 [업무] 폴더의 예시 메모입니다.\n업무 일지, 회의록, 프로젝트 계획 등을 체계적으로 관리해 보세요.\n\n---\n\n📌 다른 메모로 이동하기 (더블 클릭):\n- 시작 안내문: [[환영합니다]]\n- 개인 메모: [[개인/테스트]]\n`, 'utf-8');
+    }
+  }
+
+  if (!fs.existsSync(welcomeFile)) {
+    const src = path.join(DEFAULT_MEMOS_DIR, '환영합니다.txt');
+    if (fs.existsSync(src)) {
+      fs.copyFileSync(src, welcomeFile);
+    } else {
+      fs.writeFileSync(welcomeFile, `📝 데스크톱 메모장에 오신 것을 환영합니다!\n\n- 개인 메모: [[개인/테스트]]\n- 업무 메모: [[업무/테스트]]\n`, 'utf-8');
+    }
   }
 }
 

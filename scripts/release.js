@@ -2,6 +2,7 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const { createZipArchive } = require('./zip-util');
 
 function run(cmd, options = {}) {
   console.log(`> ${cmd}`);
@@ -66,10 +67,15 @@ function main() {
       readme = readme.replace(/badge\/version-v[^-\s]+-blue/, `badge/version-${tag}-blue`);
       fs.writeFileSync(readmePath, readme, 'utf8');
     }
+  }
 
-    run(`git add package.json public/index.html README.md`);
-    run(`git commit -m "chore: bump version to ${tag}"`);
-    run(`git push origin main`);
+  // Commit any pending changes before tagging
+  const status = runOutput('git status --porcelain');
+  if (status) {
+    console.log('📝 변경 사항 자동 커밋 및 푸시 중...');
+    run('git add -A');
+    run(`git commit -m "chore: release ${tag}"`);
+    run('git push origin main');
   }
 
   // 4. Create Git Tag if not exists
@@ -89,11 +95,12 @@ function main() {
     fs.unlinkSync(zipPath);
   }
 
-  console.log(`📦 릴리즈 압축 파일 생성 중: ${zipName}`);
+  console.log(`📦 UTF-8 호환 릴리즈 압축 파일 생성 중: ${zipName}`);
   try {
-    run(`zip -r "${zipName}" . -x ".git/*" ".github/*" "*.DS_Store" "config.json" "${zipName}"`);
+    const zipSize = createZipArchive(rootDir, zipPath);
+    console.log(`✅ 압축 파일 생성 완료 (${(zipSize / 1024).toFixed(1)} KB)`);
   } catch (e) {
-    console.warn('⚠️ zip 명령 실패, 압축 파일 없이 릴리즈 진행합니다.');
+    console.error('❌ 압축 파일 생성 실패:', e);
   }
 
   // 6. Create or update GitHub Release
