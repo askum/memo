@@ -21,8 +21,29 @@ try {
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(DEFAULT_MEMOS_DIR)) fs.mkdirSync(DEFAULT_MEMOS_DIR, { recursive: true });
 
-// Shutdown tracking on window close
+// Lifecycle & Auto-Shutdown Watchdog
+const serverStartTime = Date.now();
+let lastHeartbeatTime = Date.now();
+let hasClientConnected = false;
 let shutdownTimeout = null;
+
+// Watchdog: If no client heartbeat received within 4.5 seconds after connection, terminate!
+const WATCHDOG_CHECK_INTERVAL_MS = 1000;
+const HEARTBEAT_TIMEOUT_MS = 4500;
+
+setInterval(() => {
+  if (hasClientConnected) {
+    const elapsed = Date.now() - lastHeartbeatTime;
+    if (elapsed > HEARTBEAT_TIMEOUT_MS) {
+      console.log(`[INFO] 브라우저 창 닫힘 감지 (${Math.round(elapsed / 1000)}초간 하트비트 없음). 서버를 안전하게 종료합니다.`);
+      process.exit(0);
+    }
+  } else if (Date.now() - serverStartTime > 30000) {
+    // If no browser connected within 30 seconds of server launch, exit
+    console.log('[INFO] 브라우저 연결 없음 (30초 경과). 서버를 자동 종료합니다.');
+    process.exit(0);
+  }
+}, WATCHDOG_CHECK_INTERVAL_MS);
 
 // Helper to resolve file path handling Unicode NFC/NFD on macOS
 function resolveFilePath(rawPath) {
@@ -402,8 +423,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    // API: Heartbeat (Cancels any pending shutdown timer on window refresh)
-    if (pathname === '/api/heartbeat' && req.method === 'POST') {
+    // API: Heartbeat
+    if (pathname === '/api/heartbeat') {
+      lastHeartbeatTime = Date.now();
+      hasClientConnected = true;
       if (shutdownTimeout) {
         clearTimeout(shutdownTimeout);
         shutdownTimeout = null;
@@ -411,14 +434,14 @@ const server = http.createServer(async (req, res) => {
       return sendJSON(res, 200, { ok: true });
     }
 
-    // API: Shutdown Beacon on Window Close
-    if (pathname === '/api/shutdown' && req.method === 'POST') {
-      console.log('[INFO] 브라우저 창 닫힘 신호 수신. 3초 후 서버를 안전하게 종료합니다.');
+    // API: Shutdown Beacon on Window Close (Accept both GET and POST)
+    if (pathname === '/api/shutdown') {
+      console.log('[INFO] 브라우저 창 닫힘 신호 수신. 서버를 안전하게 종료합니다.');
       if (shutdownTimeout) clearTimeout(shutdownTimeout);
       shutdownTimeout = setTimeout(() => {
         console.log('[INFO] 프로그램을 종료합니다.');
         process.exit(0);
-      }, 3000);
+      }, 1000);
       return sendJSON(res, 200, { ok: true });
     }
 
@@ -740,6 +763,7 @@ const server = http.createServer(async (req, res) => {
 
 // Open in Standalone App Window Mode (No browser address bar or tabs)
 function openBrowser(url) {
+  if (process.env.NO_BROWSER) return;
   if (process.platform === 'darwin') {
     // Mac: Google Chrome App Mode
     exec(`open -na "Google Chrome" --args --app="${url}"`, (err) => {

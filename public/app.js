@@ -1837,6 +1837,22 @@ function setupEventListeners() {
   // Theme Toggle Button
   if (btnThemeToggle) btnThemeToggle.onclick = toggleTheme;
 
+  // App Exit Power Button
+  const btnAppExit = document.getElementById('btnAppExit');
+  if (btnAppExit) {
+    btnAppExit.onclick = async () => {
+      if (confirm('Desktop Memo 프로그램을 완전히 종료하시겠습니까?')) {
+        try {
+          await fetch('/api/shutdown');
+        } catch (e) {}
+        window.close();
+        setTimeout(() => {
+          document.body.innerHTML = '<div style="display:flex;height:100vh;align-items:center;justify-content:center;font-size:15px;color:var(--text-muted);font-family:sans-serif;text-align:center;line-height:1.6;">Desktop Memo 프로그램이 안전하게 종료되었습니다.<br>이 창을 닫으셔도 됩니다.</div>';
+        }, 150);
+      }
+    };
+  }
+
   // Help Modal Actions
   if (btnHelp) btnHelp.onclick = openHelpModal;
   if (btnFooterHelp) btnFooterHelp.onclick = openHelpModal;
@@ -2479,7 +2495,7 @@ function startHeartbeat() {
     fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
   }
   ping();
-  setInterval(ping, 2500);
+  setInterval(ping, 1500);
 
   // Ping immediately when user returns to window, switches tab, or wakes from sleep
   window.addEventListener('focus', ping);
@@ -2488,11 +2504,11 @@ function startHeartbeat() {
     if (document.visibilityState === 'visible') ping();
   });
 
-  // Also ping on user interaction (throttled to at most once per 4 seconds)
+  // Also ping on user interaction (throttled to at most once per 2 seconds)
   let lastActivityPing = 0;
   const onActivity = () => {
     const now = Date.now();
-    if (now - lastActivityPing > 4000) {
+    if (now - lastActivityPing > 2000) {
       lastActivityPing = now;
       ping();
     }
@@ -2503,16 +2519,17 @@ function startHeartbeat() {
   // Send shutdown beacon when window closes
   const sendShutdown = () => {
     try {
+      const payload = new Blob(['1'], { type: 'text/plain' });
       if (navigator.sendBeacon) {
-        navigator.sendBeacon('/api/shutdown');
-      } else {
-        fetch('/api/shutdown', { method: 'POST', keepalive: true }).catch(() => {});
+        navigator.sendBeacon('/api/shutdown', payload);
       }
+      fetch('/api/shutdown', { method: 'POST', keepalive: true, body: '1' }).catch(() => {});
     } catch (e) {}
   };
 
   window.addEventListener('beforeunload', sendShutdown);
   window.addEventListener('pagehide', sendShutdown);
+  window.addEventListener('unload', sendShutdown);
 }
 
 // Launch

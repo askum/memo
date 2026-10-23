@@ -257,6 +257,19 @@ html, body {
   color: var(--text-primary);
 }
 
+.header-tool-exit:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+button svg,
+.btn svg,
+.action-btn svg,
+.header-tool-btn svg,
+.nav-btn svg {
+  pointer-events: none;
+}
+
 /* Workspace Root Folder Selector (Notion / Obsidian vault style) */
 .folder-select-box {
   margin: 8px 10px 4px 10px;
