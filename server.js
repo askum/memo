@@ -552,6 +552,47 @@ const server = http.createServer(async (req, res) => {
       return sendJSON(res, 200, { success: true, newPath });
     }
 
+    // API: Move File or Folder
+    if (pathname === '/api/move' && req.method === 'POST') {
+      const { sourcePath, targetDirPath } = await parseBody(req);
+      if (!sourcePath || !fs.existsSync(sourcePath)) {
+        return sendJSON(res, 404, { error: '이동할 항목을 찾을 수 없습니다.' });
+      }
+
+      let destDir = targetDirPath;
+      if (!destDir || !fs.existsSync(destDir)) {
+        destDir = getConfig().rootFolder;
+      }
+      const dirStat = fs.statSync(destDir);
+      if (!dirStat.isDirectory()) {
+        destDir = path.dirname(destDir);
+      }
+
+      // Check if moving to same directory
+      const currentParent = path.dirname(sourcePath);
+      if (path.resolve(currentParent) === path.resolve(destDir)) {
+        return sendJSON(res, 400, { error: '이미 해당 폴더에 위치해 있습니다.' });
+      }
+
+      // If moving a directory, check if destDir is within sourcePath
+      const srcStat = fs.statSync(sourcePath);
+      if (srcStat.isDirectory()) {
+        const rel = path.relative(sourcePath, destDir);
+        if (!rel.startsWith('..') && !path.isAbsolute(rel)) {
+          return sendJSON(res, 400, { error: '폴더를 자기 자신의 하위 폴더로 이동할 수 없습니다.' });
+        }
+      }
+
+      const itemName = path.basename(sourcePath);
+      const newPath = path.join(destDir, itemName);
+      if (fs.existsSync(newPath)) {
+        return sendJSON(res, 400, { error: `'${itemName}' 항목이 대상 위치에 이미 존재합니다.` });
+      }
+
+      fs.renameSync(sourcePath, newPath);
+      return sendJSON(res, 200, { success: true, oldPath: sourcePath, newPath: newPath });
+    }
+
     // API: Delete
     if (pathname === '/api/delete' && req.method === 'POST') {
       const { targetPath } = await parseBody(req);

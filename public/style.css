@@ -394,6 +394,26 @@ body, html {
   color: #fde047;
 }
 
+/* Tree Item Drag and Drop */
+.tree-item.is-dragging {
+  opacity: 0.45;
+  background-color: var(--bg-hover) !important;
+}
+
+.tree-item.drag-over-folder {
+  background-color: var(--bg-active) !important;
+  outline: 2px dashed var(--accent-primary) !important;
+  outline-offset: -2px;
+  border-radius: 5px;
+}
+
+.drag-over-root {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+  outline: 2px dashed var(--accent-primary) !important;
+  outline-offset: -2px;
+  border-radius: 6px;
+}
+
 .tree-item-chevron {
   width: 16px;
   height: 16px;

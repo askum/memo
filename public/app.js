@@ -18,7 +18,8 @@ let state = {
   lastSavedTimeStr: '',
   showLineNumbers: savedLinePref !== null ? savedLinePref === 'true' : true,
   wordWrap: savedWrapPref !== null ? savedWrapPref === 'true' : true,
-  showAllFiles: savedShowAllFiles === 'true' ? true : false
+  showAllFiles: savedShowAllFiles === 'true' ? true : false,
+  draggedTreeItem: null
 };
 
 // Navigation History
@@ -402,6 +403,53 @@ function updateTreeActiveState() {
   });
 }
 
+// Move File or Folder to target directory
+async function moveTreeItem(sourcePath, targetDirPath) {
+  if (!sourcePath || !targetDirPath) return;
+
+  const srcNorm = sourcePath.replace(/\\/g, '/');
+  const targetDirNorm = targetDirPath.replace(/\\/g, '/');
+  const currentParentNorm = srcNorm.substring(0, srcNorm.lastIndexOf('/'));
+
+  if (currentParentNorm === targetDirNorm) {
+    showToast('ℹ️ 이미 해당 폴더에 위치해 있습니다.');
+    return;
+  }
+
+  const fileName = sourcePath.split(/[\\/]/).pop();
+  const rootNorm = state.rootFolder.replace(/\\/g, '/');
+  const targetFolderName = (targetDirNorm === rootNorm)
+    ? '최상위(루트)'
+    : targetDirPath.split(/[\\/]/).pop();
+
+  try {
+    const res = await fetch('/api/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourcePath, targetDirPath })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || '파일 이동에 실패했습니다.');
+      return;
+    }
+
+    showToast(`🚚 '${getDisplayName(fileName, false)}'을(를) '${targetFolderName}' 폴더로 이동했습니다.`);
+
+    // If the currently open file was moved, update state and header paths
+    if (state.currentFilePath && state.currentFilePath.replace(/\\/g, '/') === srcNorm) {
+      state.currentFilePath = data.newPath;
+      const relPath = data.newPath.replace(state.rootFolder, '').replace(/^[\\/]/, '') || fileName;
+      if (filePathDisplay) filePathDisplay.textContent = getDisplayName(relPath, false);
+      if (fileTitle) fileTitle.textContent = getDisplayName(fileName, false);
+    }
+
+    await loadTree();
+  } catch (err) {
+    alert('파일 이동 중 오류가 발생했습니다: ' + err.message);
+  }
+}
+
 function createTreeNode(item) {
   const wrapper = document.createElement('div');
   wrapper.className = 'tree-node-wrapper';
@@ -409,6 +457,95 @@ function createTreeNode(item) {
   const row = document.createElement('div');
   row.className = 'tree-item';
   row.setAttribute('data-path', item.path);
+  row.draggable = true;
+
+  // Drag start for moving item to another folder
+  row.addEventListener('dragstart', (e) => {
+    if (e.target.closest('.action-btn') || e.target.closest('.tree-item-chevron')) {
+      e.preventDefault();
+      return;
+    }
+    e.dataTransfer.setData('text/plain', item.path);
+    e.dataTransfer.effectAllowed = 'move';
+    state.draggedTreeItem = item;
+    setTimeout(() => {
+      row.classList.add('is-dragging');
+    }, 0);
+  });
+
+  row.addEventListener('dragend', () => {
+    row.classList.remove('is-dragging');
+    state.draggedTreeItem = null;
+    document.querySelectorAll('.drag-over-folder').forEach(el => el.classList.remove('drag-over-folder'));
+  });
+
+  // Drop target handling
+  if (item.isDir) {
+    row.addEventListener('dragover', (e) => {
+      if (!state.draggedTreeItem) return;
+      if (state.draggedTreeItem.path === item.path) return;
+      // Prevent dropping a folder into itself or its subfolders
+      if (state.draggedTreeItem.isDir) {
+        const srcNorm = state.draggedTreeItem.path.replace(/\\/g, '/');
+        const targetNorm = item.path.replace(/\\/g, '/');
+        if (targetNorm === srcNorm || targetNorm.startsWith(srcNorm + '/')) {
+          return;
+        }
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      row.classList.add('drag-over-folder');
+    });
+
+    row.addEventListener('dragleave', (e) => {
+      if (!row.contains(e.relatedTarget)) {
+        row.classList.remove('drag-over-folder');
+      }
+    });
+
+    row.addEventListener('drop', async (e) => {
+      if (!state.draggedTreeItem) return;
+      e.preventDefault();
+      e.stopPropagation();
+      row.classList.remove('drag-over-folder');
+      const srcPath = state.draggedTreeItem.path;
+      if (srcPath && srcPath !== item.path) {
+        if (childrenContainer && !chevron.classList.contains('open')) {
+          chevron.click();
+        }
+        await moveTreeItem(srcPath, item.path);
+      }
+    });
+  } else {
+    // Dropping onto a file -> target that file's parent folder
+    row.addEventListener('dragover', (e) => {
+      if (!state.draggedTreeItem) return;
+      if (state.draggedTreeItem.path === item.path) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      row.classList.add('drag-over-folder');
+    });
+
+    row.addEventListener('dragleave', (e) => {
+      if (!row.contains(e.relatedTarget)) {
+        row.classList.remove('drag-over-folder');
+      }
+    });
+
+    row.addEventListener('drop', async (e) => {
+      if (!state.draggedTreeItem) return;
+      e.preventDefault();
+      e.stopPropagation();
+      row.classList.remove('drag-over-folder');
+      const srcPath = state.draggedTreeItem.path;
+      if (srcPath && srcPath !== item.path) {
+        const parentDir = item.path.replace(/\\/g, '/').split('/').slice(0, -1).join('/');
+        await moveTreeItem(srcPath, parentDir);
+      }
+    });
+  }
 
   const normCurrent = state.currentFilePath ? state.currentFilePath.replace(/\\/g, '/') : null;
   const normItem = item.path ? item.path.replace(/\\/g, '/') : null;
@@ -1827,6 +1964,33 @@ function setupEventListeners() {
       insertLinkIntoTextarea(links.join('\n'));
       showToast(`📎 ${links.length}개 파일 링크가 본문에 삽입되었습니다.`);
     }
+  });
+
+  // Tree Root Area Drop Targets (to move files to root folder)
+  const treeScrollContainer = document.querySelector('.tree-scroll-container');
+  [treeScrollContainer, treeRoot, currentFolderName].forEach(el => {
+    if (!el) return;
+    el.addEventListener('dragover', (e) => {
+      if (!state.draggedTreeItem) return;
+      if (e.target === treeScrollContainer || e.target === treeRoot || e.target === currentFolderName) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        el.classList.add('drag-over-root');
+      }
+    });
+    el.addEventListener('dragleave', (e) => {
+      if (e.target === el) {
+        el.classList.remove('drag-over-root');
+      }
+    });
+    el.addEventListener('drop', async (e) => {
+      el.classList.remove('drag-over-root');
+      if (state.draggedTreeItem && (e.target === treeScrollContainer || e.target === treeRoot || e.target === currentFolderName)) {
+        e.preventDefault();
+        e.stopPropagation();
+        await moveTreeItem(state.draggedTreeItem.path, state.rootFolder);
+      }
+    });
   });
 
   // Line Numbers Toggle
