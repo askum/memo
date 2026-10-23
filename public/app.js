@@ -134,53 +134,54 @@ function isTextMemo(fileName) {
   return /\.(txt|md|markdown)$/i.test(fileName);
 }
 
-// Helper: Get icon based on file type
+// Helper: Get icon SVG based on file type
 function getFileIcon(fileName, isDir) {
-  if (isDir) return '📁';
+  if (isDir) {
+    return `<svg class="tree-item-icon-svg icon-folder" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+  }
   const ext = (fileName || '').split('.').pop().toLowerCase();
   switch (ext) {
     case 'xlsx':
     case 'xls':
     case 'csv':
-      return '📊';
+      return `<svg class="tree-item-icon-svg icon-excel" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>`;
     case 'pdf':
-      return '📑';
+      return `<svg class="tree-item-icon-svg icon-pdf" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13v4"/><path d="M12 13v4"/><path d="M15 13v4"/></svg>`;
     case 'doc':
     case 'docx':
-      return '📄';
-    case 'ppt':
-    case 'pptx':
-      return '📽️';
     case 'hwp':
     case 'hwpx':
-      return '✍️';
+      return `<svg class="tree-item-icon-svg icon-doc" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
+    case 'ppt':
+    case 'pptx':
+      return `<svg class="tree-item-icon-svg icon-ppt" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>`;
     case 'png':
     case 'jpg':
     case 'jpeg':
     case 'gif':
     case 'webp':
     case 'svg':
-      return '🖼️';
+      return `<svg class="tree-item-icon-svg icon-image" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
     case 'zip':
     case 'rar':
     case '7z':
     case 'tar':
     case 'gz':
-      return '📦';
+      return `<svg class="tree-item-icon-svg icon-zip" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>`;
     case 'mp3':
     case 'wav':
     case 'm4a':
-      return '🎵';
+      return `<svg class="tree-item-icon-svg icon-audio" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
     case 'mp4':
     case 'mov':
     case 'avi':
-      return '🎬';
+      return `<svg class="tree-item-icon-svg icon-video" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`;
     case 'txt':
     case 'md':
     case 'markdown':
-      return '📝';
+      return `<svg class="tree-item-icon-svg icon-memo" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
     default:
-      return '📎';
+      return `<svg class="tree-item-icon-svg icon-default" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`;
   }
 }
 
@@ -271,10 +272,10 @@ function applyTheme(theme, save = true) {
   }
   if (btnThemeToggle) {
     if (theme === 'dark') {
-      btnThemeToggle.textContent = '☀️';
+      btnThemeToggle.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
       btnThemeToggle.title = '라이트 모드로 변경';
     } else {
-      btnThemeToggle.textContent = '🌙';
+      btnThemeToggle.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
       btnThemeToggle.title = '다크 모드로 변경';
     }
   }
@@ -290,11 +291,11 @@ function toggleTheme() {
 function updateFileFilterBtn() {
   if (!btnToggleAllFiles) return;
   if (state.showAllFiles) {
-    btnToggleAllFiles.textContent = '🗂️ 전체';
+    btnToggleAllFiles.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span>전체 파일</span>`;
     btnToggleAllFiles.classList.add('active');
     btnToggleAllFiles.title = '파일 보기 필터: 모든 파일 표시 중 (클릭시 txt 메모만 보기)';
   } else {
-    btnToggleAllFiles.textContent = '📄 txt';
+    btnToggleAllFiles.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><span>txt 전용</span>`;
     btnToggleAllFiles.classList.remove('active');
     btnToggleAllFiles.title = '파일 보기 필터: txt 메모만 표시 중 (클릭시 모든 파일 보기)';
   }
@@ -332,9 +333,13 @@ async function init() {
 }
 
 function updateRootFolderDisplay() {
-  const parts = state.rootFolder.split(/[\\/]/);
+  const parts = state.rootFolder.split(/[\\/]/).filter(Boolean);
   const name = parts[parts.length - 1] || state.rootFolder;
-  currentFolderName.textContent = `📁 ${name}`;
+  currentFolderName.innerHTML = `
+    <svg class="folder-select-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+    <span class="folder-name-text">${escapeHtml(name)}</span>
+    <svg class="folder-caret-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+  `;
   currentFolderName.title = state.rootFolder;
 }
 
@@ -565,7 +570,7 @@ function createTreeNode(item) {
   const chevron = document.createElement('span');
   chevron.className = 'tree-item-chevron';
   if (item.isDir) {
-    chevron.textContent = '▶';
+    chevron.innerHTML = `<svg class="chevron-svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
     chevron.classList.add('open'); // default open
   } else {
     chevron.style.visibility = 'hidden';
@@ -575,7 +580,7 @@ function createTreeNode(item) {
   // Icon
   const icon = document.createElement('span');
   icon.className = 'tree-item-icon';
-  icon.textContent = getFileIcon(item.name, item.isDir);
+  icon.innerHTML = getFileIcon(item.name, item.isDir);
   row.appendChild(icon);
 
   // Label (without extension for text memos, with extension for external files)
@@ -595,14 +600,14 @@ function createTreeNode(item) {
     const btnAdd = document.createElement('button');
     btnAdd.className = 'action-btn';
     btnAdd.title = '이 폴더 안에 새 메모 생성';
-    btnAdd.textContent = '+📝';
+    btnAdd.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`;
     btnAdd.onclick = (e) => { e.stopPropagation(); promptNewFile(item.path); };
     actions.appendChild(btnAdd);
 
     const btnAddFolder = document.createElement('button');
     btnAddFolder.className = 'action-btn';
     btnAddFolder.title = '이 폴더 안에 새 폴더 생성';
-    btnAddFolder.textContent = '+📁';
+    btnAddFolder.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>`;
     btnAddFolder.onclick = (e) => { e.stopPropagation(); promptNewFolder(item.path); };
     actions.appendChild(btnAddFolder);
   }
@@ -610,14 +615,14 @@ function createTreeNode(item) {
   const btnRename = document.createElement('button');
   btnRename.className = 'action-btn';
   btnRename.title = '이름 변경';
-  btnRename.textContent = '✏️';
+  btnRename.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
   btnRename.onclick = (e) => { e.stopPropagation(); promptRename(item.path, item.name); };
   actions.appendChild(btnRename);
 
   const btnDelete = document.createElement('button');
-  btnDelete.className = 'action-btn';
+  btnDelete.className = 'action-btn action-btn-delete';
   btnDelete.title = '삭제';
-  btnDelete.textContent = '🗑️';
+  btnDelete.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
   btnDelete.onclick = (e) => { e.stopPropagation(); promptDelete(item.path, item.name, item.isDir); };
   actions.appendChild(btnDelete);
 
@@ -739,7 +744,7 @@ async function loadFile(filePath, isNavigatingHistory = false) {
 
     // Update Header (hide extension)
     const fileName = filePath.split(/[\\/]/).pop();
-    fileIcon.textContent = '📝';
+    fileIcon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="file-title-svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
     fileTitle.textContent = getDisplayName(fileName, false);
     const relPath = filePath.replace(state.rootFolder, '').replace(/^[\\/]/, '') || fileName;
     filePathDisplay.textContent = getDisplayName(relPath, false);
@@ -889,7 +894,7 @@ function updateSaveStatus(status, detail = '') {
   if (status === 'clean') {
     // Unmodified file loaded from disk
     const timeStr = detail || state.lastSavedTimeStr || '';
-    saveStatusBadge.textContent = timeStr ? `💾 저장됨 (${timeStr})` : `💾 저장됨`;
+    saveStatusBadge.innerHTML = `<span class="status-dot status-dot-saved"></span><span class="status-text">저장됨</span>`;
     saveStatusBadge.title = timeStr ? `파일이 최신 상태로 보존되어 있습니다 (최종 수정: ${timeStr})` : '파일이 최신 상태로 보존되어 있습니다';
     saveStatusBadge.onclick = null;
     lastSavedTime.textContent = timeStr ? `최종 수정: ${timeStr}` : '최신 상태';
@@ -898,22 +903,22 @@ function updateSaveStatus(status, detail = '') {
     // Actively saved
     const timeStr = detail || new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     state.lastSavedTimeStr = timeStr;
-    saveStatusBadge.textContent = `💾 저장됨 (${timeStr})`;
+    saveStatusBadge.innerHTML = `<span class="status-dot status-dot-saved"></span><span class="status-text">저장됨</span>`;
     saveStatusBadge.title = `안전하게 저장되었습니다 (${timeStr})`;
     saveStatusBadge.onclick = null;
     lastSavedTime.textContent = `마지막 저장: ${timeStr}`;
     updateUnsavedIndicators(false);
   } else if (status === 'saving') {
-    saveStatusBadge.textContent = '⏳ 저장 중...';
-    saveStatusBadge.title = '서버에 저장하고 있습니다';
+    saveStatusBadge.innerHTML = `<span class="status-dot status-dot-saving pulse"></span><span class="status-text">저장 중...</span>`;
+    saveStatusBadge.title = '서버에 자동 저장하고 있습니다';
     saveStatusBadge.onclick = null;
   } else if (status === 'editing' || status === 'unsaved') {
-    saveStatusBadge.textContent = '⚠️ 저장 안 됨 (수정 중)';
+    saveStatusBadge.innerHTML = `<span class="status-dot status-dot-dirty"></span><span class="status-text">수정 중</span>`;
     saveStatusBadge.title = '아직 저장되지 않은 내용이 있습니다. 1초 후 자동 저장되거나 클릭하여 즉시 저장합니다.';
     saveStatusBadge.onclick = () => saveCurrentFile(true);
     updateUnsavedIndicators(true);
   } else if (status === 'error') {
-    saveStatusBadge.textContent = '❌ 저장 실패 (클릭하여 재시도)';
+    saveStatusBadge.innerHTML = `<span class="status-dot status-dot-error"></span><span class="status-text">저장 실패</span>`;
     saveStatusBadge.title = detail ? `저장 실패 원인: ${detail}. 클릭하여 다시 시도하세요.` : '저장에 실패했습니다. 클릭하여 다시 시도하세요.';
     saveStatusBadge.onclick = () => saveCurrentFile(true);
     updateUnsavedIndicators(true);
@@ -1303,7 +1308,7 @@ function renderLinkItems(files) {
     const icon = getFileIcon(file.name, false);
 
     row.innerHTML = `
-      <span style="font-size: 14px;">${icon}</span>
+      <span class="link-item-icon">${icon}</span>
       <span class="link-item-name">${escapeHtml(cleanName)}</span>
       <span class="link-item-path">${escapeHtml(relPath)}</span>
     `;
@@ -1662,8 +1667,8 @@ function clearActiveEditor() {
   emptyState.classList.remove('hidden');
 
   fileTitle.textContent = '선택된 메모 없음';
-  filePathDisplay.textContent = '👈 왼쪽 트리에서 메모 파일을 선택하거나 새로 만드세요';
-  fileIcon.textContent = '📝';
+  filePathDisplay.textContent = '왼쪽 목록에서 메모를 선택하거나 새로 만드세요';
+  fileIcon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="file-title-svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
   saveStatusBadge.textContent = '';
   saveStatusBadge.className = 'status-badge';
 
@@ -1786,7 +1791,12 @@ async function loadFolderBrowserDirs(targetPath) {
         data.folders.forEach(f => {
           const row = document.createElement('div');
           row.className = 'fb-folder-item';
-          row.innerHTML = `<span style="font-size: 16px;">📁</span> <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(f.name)}</span>`;
+          row.innerHTML = `
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(f.name)}</span>
+          `;
           row.title = `${f.name} (클릭하여 선택, 더블 클릭하여 진입)`;
 
           row.onclick = () => {

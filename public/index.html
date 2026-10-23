@@ -10,7 +10,7 @@
   <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2">
   <link rel="apple-touch-icon" href="favicon-256.png?v=2">
-  <link rel="stylesheet" href="style.css?v=14">
+  <link rel="stylesheet" href="style.css?v=15">
 </head>
 <body>
   <div class="app-container">
@@ -18,44 +18,92 @@
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="app-brand">
-          <img src="favicon.svg?v=2" class="brand-app-icon" alt="메모 아이콘" width="22" height="22">
+          <svg class="brand-app-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
           <span class="brand-title">Desktop Memo</span>
-          <span class="version-badge" id="appVersionBadge">v1.0.2</span>
+          <span class="version-badge" id="appVersionBadge">v1.0.3</span>
         </div>
         <div class="header-tools">
-          <button class="btn btn-icon btn-sm header-tool-btn" id="btnThemeToggle" title="테마 변경 (라이트 / 다크)">🌙</button>
-          <button class="btn btn-icon btn-sm header-tool-btn" id="btnHelp" title="기능 안내 및 단축키 (F1)">❓</button>
+          <button class="btn btn-icon btn-sm header-tool-btn" id="btnThemeToggle" title="테마 변경 (라이트 / 다크)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </button>
+          <button class="btn btn-icon btn-sm header-tool-btn" id="btnHelp" title="기능 안내 및 단축키 (F1)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </button>
         </div>
       </div>
 
       <!-- Current Root Folder Card -->
-      <div class="folder-select-box">
-        <div class="folder-meta">
-          <span class="folder-label">현재 작업 폴더</span>
-          <span class="folder-name" id="currentFolderName" title="클릭하여 폴더 변경">📁 memos</span>
+      <div class="folder-select-box" id="currentFolderCard">
+        <div class="folder-meta" id="currentFolderName" title="클릭하여 작업 폴더 변경">
+          <svg class="folder-select-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          <span class="folder-name-text">memos</span>
+          <svg class="folder-caret-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
         </div>
-        <button class="btn btn-secondary btn-sm" id="btnChangeFolder" title="다른 폴더 선택">폴더 변경</button>
+        <button class="btn btn-ghost btn-xs folder-change-btn" id="btnChangeFolder" title="다른 폴더 선택">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+          <span>변경</span>
+        </button>
       </div>
 
       <!-- Toolbar: New File, New Folder, Refresh -->
       <div class="tree-toolbar">
-        <button class="btn btn-primary btn-sm" id="btnNewFile" title="새 메모 생성">
-          <span class="icon">+</span> 새 메모
+        <button class="btn btn-primary btn-sm" id="btnNewFile" title="새 메모 생성 (단축키: Cmd+N / Ctrl+N)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
+          <span>새 메모</span>
         </button>
         <button class="btn btn-secondary btn-sm" id="btnNewFolder" title="새 폴더 생성">
-          <span class="icon">+</span> 새 폴더
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            <line x1="12" y1="11" x2="12" y2="17"/>
+            <line x1="9" y1="14" x2="15" y2="14"/>
+          </svg>
+          <span>새 폴더</span>
         </button>
-        <button class="btn btn-icon btn-sm" id="btnToggleAllFiles" title="파일 필터: 현재 txt 메모만 표시 중 (클릭시 모든 파일 보기)">
-          📄 txt
+        <button class="btn btn-ghost btn-sm btn-filter" id="btnToggleAllFiles" title="파일 보기 필터: txt 메모만 표시 중 (클릭시 모든 파일 보기)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+          </svg>
+          <span>txt 전용</span>
         </button>
-        <button class="btn btn-icon btn-sm" id="btnRefresh" title="새로고침">
-          🔄
+        <button class="btn btn-icon btn-sm btn-ghost" id="btnRefresh" title="새로고침">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
         </button>
       </div>
 
       <!-- Filter / Search Box -->
       <div class="search-box">
-        <input type="text" id="treeSearchInput" placeholder="🔍 파일/폴더 검색..." autocomplete="off">
+        <svg class="search-input-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="treeSearchInput" placeholder="파일 및 폴더 검색..." autocomplete="off">
       </div>
 
       <!-- Tree Container -->
@@ -76,30 +124,54 @@
         <div class="file-info-group">
           <!-- Back and Forward History Navigation Buttons -->
           <div class="nav-history-buttons">
-            <button class="btn btn-icon btn-sm" id="btnNavBack" disabled title="이전 메모로 뒤로가기 (단축키: Cmd+[ 또는 Alt+←)">
-              ◀
+            <button class="btn btn-icon btn-sm nav-btn" id="btnNavBack" disabled title="이전 메모로 뒤로가기 (단축키: Cmd+[ 또는 Alt+←)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
             </button>
-            <button class="btn btn-icon btn-sm" id="btnNavForward" disabled title="다음 메모로 앞으로가기 (단축키: Cmd+] 또는 Alt+→)">
-              ▶
+            <button class="btn btn-icon btn-sm nav-btn" id="btnNavForward" disabled title="다음 메모로 앞으로가기 (단축키: Cmd+] 또는 Alt+→)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
             </button>
           </div>
-          <span class="file-type-icon" id="fileIcon">📝</span>
+          <div class="file-icon-wrap" id="fileIcon">
+            <svg class="file-title-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+            </svg>
+          </div>
           <div class="file-titles">
             <h1 class="file-title" id="fileTitle">선택된 메모 없음</h1>
-            <span class="file-path" id="filePathDisplay">👈 왼쪽 트리에서 메모 파일을 선택하거나 새로 만드세요</span>
+            <span class="file-path" id="filePathDisplay">왼쪽 목록에서 메모를 선택하거나 새로 만드세요</span>
           </div>
         </div>
 
         <div class="editor-actions">
+          <div class="status-badge" id="saveStatusBadge"></div>
           <button class="btn btn-secondary btn-sm" id="btnToggleFindReplace" title="찾기 및 바꾸기 (단축키: Cmd+F / Ctrl+F)">
-            🔍 찾기/바꾸기
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <span>찾기 / 바꾸기</span>
           </button>
           <button class="btn btn-secondary btn-sm" id="btnInsertLink" disabled title="다른 메모로 이동하는 링크 삽입 (단축키: Cmd+K / Ctrl+K)">
-            🔗 링크 삽입
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+            <span>링크 삽입</span>
           </button>
-          <span class="status-badge" id="saveStatusBadge"></span>
-          <button class="btn btn-primary" id="btnManualSave" disabled title="단축키: Cmd+S / Ctrl+S">
-            💾 저장
+          <button class="btn btn-primary btn-sm btn-save" id="btnManualSave" disabled title="단축키: Cmd+S / Ctrl+S">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>저장</span>
           </button>
         </div>
       </header>
@@ -108,9 +180,16 @@
       <div class="editor-body" id="editorBody">
         <div class="empty-state" id="emptyState">
           <div class="empty-content">
-            <span class="empty-icon">📂</span>
-            <h2>메모가 선택되지 않았습니다</h2>
-            <p>왼쪽 트리에서 메모를 클릭하여 열거나, <strong>[+ 새 메모]</strong> 버튼을 눌러 새 메모를 시작하세요.</p>
+            <div class="empty-icon-wrap">
+              <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+            </div>
+            <h2>선택된 메모가 없습니다</h2>
+            <p>왼쪽 목록에서 메모를 클릭하여 열거나 <strong>[새 메모]</strong> 버튼을 눌러 시작하세요.</p>
           </div>
         </div>
 
@@ -119,23 +198,46 @@
           <!-- Row 1: Find -->
           <div class="fr-row">
             <div class="fr-input-wrap">
-              <span class="fr-icon">🔍</span>
+              <svg class="fr-icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
               <input type="text" id="findInput" class="fr-input" placeholder="찾을 단어..." autocomplete="off" spellcheck="false">
               <span class="fr-count" id="findCount">0 / 0</span>
             </div>
             <div class="fr-btn-group">
               <button class="btn btn-icon btn-sm fr-tool-btn" id="btnFindMatchCase" title="대/소문자 구분 (Alt+C)">Aa</button>
-              <button class="btn btn-icon btn-sm fr-nav-btn" id="btnFindPrev" title="이전 찾기 (Shift+Enter)">▲</button>
-              <button class="btn btn-icon btn-sm fr-nav-btn" id="btnFindNext" title="다음 찾기 (Enter)">▼</button>
-              <button class="btn btn-icon btn-sm fr-tool-btn" id="btnToggleReplaceMode" title="바꾸기 펼치기/접기 (Ctrl+H)">▾</button>
-              <button class="btn btn-icon btn-sm fr-close-btn" id="btnFindClose" title="닫기 (Esc)">✕</button>
+              <button class="btn btn-icon btn-sm fr-nav-btn" id="btnFindPrev" title="이전 찾기 (Shift+Enter)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="18 15 12 9 6 15"/>
+                </svg>
+              </button>
+              <button class="btn btn-icon btn-sm fr-nav-btn" id="btnFindNext" title="다음 찾기 (Enter)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              <button class="btn btn-icon btn-sm fr-tool-btn" id="btnToggleReplaceMode" title="바꾸기 펼치기/접기 (Ctrl+H)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              <button class="btn btn-icon btn-sm fr-close-btn" id="btnFindClose" title="닫기 (Esc)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
             </div>
           </div>
 
           <!-- Row 2: Replace -->
           <div class="fr-row fr-replace-row" id="replaceRow">
             <div class="fr-input-wrap">
-              <span class="fr-icon">✏️</span>
+              <svg class="fr-icon-svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
               <input type="text" id="replaceInput" class="fr-input" placeholder="바꿀 단어..." autocomplete="off" spellcheck="false">
             </div>
             <div class="fr-btn-group">
@@ -152,7 +254,7 @@
           <textarea 
             id="memoTextarea" 
             class="memo-textarea hidden" 
-            placeholder="여기에 자유롭게 메모를 작성하세요... (입력시 자동으로 실시간 저장됩니다)&#10;다른 메모로 연결하려면 우측 상단 [🔗 링크 삽입]을 누르거나 '[[메모이름]]'을 적어두고 더블 클릭하면 됩니다."
+            placeholder="여기에 자유롭게 메모를 작성하세요... (입력시 자동으로 실시간 저장됩니다)&#10;다른 메모로 연결하려면 우측 상단 [링크 삽입]을 누르거나 '[[메모이름]]'을 적어두고 더블 클릭하면 됩니다."
             spellcheck="false"
           ></textarea>
         </div>
@@ -162,26 +264,42 @@
       <footer class="editor-footer">
         <div class="footer-left">
           <span id="charCount">0 글자</span>
-          <span class="separator">|</span>
+          <span class="dot-separator">·</span>
           <span id="wordCount">0 단어</span>
-          <span class="separator">|</span>
-          <button class="footer-link-btn" id="btnFooterHelp" title="기능 및 단축키 안내 열기">📖 기능 안내</button>
-          <span class="separator">|</span>
-          <span class="footer-version" title="데스크톱 메모 버전">v1.0.0</span>
+          <span class="dot-separator">·</span>
+          <button class="footer-link-btn" id="btnFooterHelp" title="기능 및 단축키 안내 열기">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <span>기능 안내</span>
+          </button>
+          <span class="dot-separator">·</span>
+          <span class="footer-version" title="데스크톱 메모 버전">v1.0.2</span>
         </div>
         <div class="footer-right">
           <button class="footer-toggle-btn active" id="btnFooterLineNumbers" title="줄 번호 켜기/끄기 (단축키: Alt+L)">
-            🔢 줄 번호
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="4" y1="9" x2="20" y2="9"/>
+              <line x1="4" y1="15" x2="20" y2="15"/>
+              <line x1="10" y1="3" x2="8" y2="21"/>
+              <line x1="16" y1="3" x2="14" y2="21"/>
+            </svg>
+            <span>줄 번호</span>
           </button>
-          <span class="separator">|</span>
           <button class="footer-toggle-btn active" id="btnFooterWordWrap" title="자동 줄바꿈 켜기/끄기 (단축키: Alt+Z)">
-            ↩ 자동 줄바꿈
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 10 4 15 9 20"/>
+              <path d="M20 4v7a4 4 0 0 1-4 4H4"/>
+            </svg>
+            <span>자동 줄바꿈</span>
           </button>
-          <span class="separator">|</span>
+          <span class="dot-separator">·</span>
           <span id="cursorPos" class="clickable-footer-status" title="클릭하여 줄 번호 토글 (단축키: Alt+L)">줄 1, 열 1</span>
-          <span class="separator">|</span>
+          <span class="dot-separator">·</span>
           <span>UTF-8</span>
-          <span class="separator">|</span>
+          <span class="dot-separator">·</span>
           <span id="lastSavedTime">대기 중</span>
         </div>
       </footer>
@@ -205,14 +323,29 @@
   <div class="modal-overlay hidden" id="linkModalOverlay">
     <div class="modal-card link-modal-card">
       <div class="link-modal-header">
-        <h3 class="modal-title">🔗 링크 삽입</h3>
+        <div class="link-title-wrap">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+          <h3 class="modal-title">링크 삽입</h3>
+        </div>
         <button class="btn btn-secondary btn-sm" id="btnLinkExternalFile" title="컴퓨터의 엑셀, PDF, 이미지 등 외부 파일 선택">
-          📎 외부 파일 선택...
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+          </svg>
+          <span>외부 파일 선택...</span>
         </button>
       </div>
       <input type="file" id="externalFileInput" multiple style="display: none;">
-      <p class="modal-desc">연결할 메모 또는 파일을 선택하세요 (더블클릭시 전용 프로그램 실행):</p>
-      <input type="text" class="modal-input" id="linkSearchInput" placeholder="검색할 메모 또는 파일 이름..." autocomplete="off">
+      <p class="modal-desc">연결할 메모 또는 파일을 선택하세요 (더블클릭 시 전용 프로그램 실행):</p>
+      <div class="modal-search-wrap">
+        <svg class="modal-search-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" class="modal-input modal-input-search" id="linkSearchInput" placeholder="메모 또는 파일 이름 검색..." autocomplete="off">
+      </div>
       <div class="link-items-list" id="linkItemsList"></div>
       <div class="modal-buttons">
         <button class="btn btn-secondary" id="btnLinkModalCancel">취소</button>
@@ -225,85 +358,132 @@
     <div class="modal-card help-modal-card">
       <div class="help-modal-header">
         <div class="help-title-wrap">
-          <span class="help-icon">📖</span>
-          <h3 class="modal-title">Desktop Memo 기능 안내 & 단축키 <span class="version-badge">v1.0.0</span></h3>
+          <svg class="help-header-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <h3 class="modal-title">Desktop Memo 안내 및 단축키 <span class="version-badge">v1.0.2</span></h3>
         </div>
-        <button class="btn btn-icon btn-sm" id="btnHelpModalClose" title="닫기 (Esc)">✕</button>
+        <button class="btn btn-icon btn-sm" id="btnHelpModalClose" title="닫기 (Esc)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
       <div class="help-modal-scroll">
         <!-- Section 1: Features -->
         <div class="help-section">
-          <h4 class="help-section-title">✨ 주요 기능 안내</h4>
+          <h4 class="help-section-title">주요 기능 안내</h4>
           <div class="help-grid">
             <div class="help-card">
-              <div class="help-card-icon">📂</div>
+              <div class="help-card-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                </svg>
+              </div>
               <div class="help-card-content">
                 <strong>폴더 & 메모 관리</strong>
-                <p>좌측 탐색기에서 작업 폴더를 선택하고, 새 메모(+📝)와 새 폴더(+📁)를 자유롭게 생성합니다. 마우스 호버 시 이름 변경(✏️)과 삭제(🗑️)가 가능하며, 파일 확장자(.txt)는 자동으로 숨겨져 깔끔하게 제목만 표시됩니다.</p>
+                <p>좌측 탐색기에서 작업 폴더를 선택하고 새 메모와 새 폴더를 자유롭게 만듭니다. 마우스 호버 시 이름 변경과 삭제가 가능하며, .txt 확장자는 자동으로 숨겨져 깔끔하게 제목만 표시됩니다.</p>
               </div>
             </div>
 
             <div class="help-card">
-              <div class="help-card-icon">⚡</div>
+              <div class="help-card-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+              </div>
               <div class="help-card-content">
                 <strong>스마트 실시간 자동 저장</strong>
-                <p>타이핑을 시작하면 1초 후 자동으로 안전하게 파일에 저장됩니다. 원본과 내용이 동일할 경우(입력 후 지웠을 때나 메모를 열었을 때)에는 불필요한 저장이 일어나지 않으며, 저장 상태를 우측 상단 배지에서 실시간으로 확인할 수 있습니다.</p>
+                <p>타이핑을 시작하면 1초 후 자동으로 안전하게 파일에 저장됩니다. 원본과 내용이 동일할 경우 불필요한 저장이 일어나지 않으며, 저장 상태를 우측 상단 인디케이터에서 실시간으로 확인합니다.</p>
               </div>
             </div>
 
             <div class="help-card">
-              <div class="help-card-icon">🔗</div>
+              <div class="help-card-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                </svg>
+              </div>
               <div class="help-card-content">
                 <strong>메모 간 링크 이동 (위키 링크)</strong>
-                <p>본문에 <code>[[메모제목]]</code> 또는 <code>[[폴더/메모제목]]</code>을 입력한 뒤 <strong>더블 클릭</strong>하면 해당 메모로 즉시 점프합니다. 상단 <strong>[🔗 링크 삽입]</strong> 버튼으로 다른 메모를 검색해 바로 넣을 수도 있습니다.</p>
+                <p>본문에 <code>[[메모제목]]</code> 또는 <code>[[폴더/메모제목]]</code>을 입력한 뒤 <strong>더블 클릭</strong>하면 해당 메모로 즉시 점프합니다. 상단 <strong>[링크 삽입]</strong> 버튼으로 편리하게 검색 삽입할 수 있습니다.</p>
               </div>
             </div>
 
             <div class="help-card">
-              <div class="help-card-icon">◀ ▶</div>
+              <div class="help-card-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="15 18 9 12 15 6"/>
+                </svg>
+              </div>
               <div class="help-card-content">
                 <strong>방문 기록 탐색 (뒤로/앞으로)</strong>
-                <p>상단 제목 좌측의 <code>◀</code>, <code>▶</code> 버튼이나 단축키로 최근 열람하거나 편집한 메모들을 웹 브라우저처럼 손쉽게 앞뒤로 이동할 수 있습니다.</p>
+                <p>상단 제목 좌측의 이전/다음 버튼이나 단축키로 최근 열람하거나 편집한 메모들을 웹 브라우저처럼 손쉽게 앞뒤로 이동합니다.</p>
               </div>
             </div>
 
             <div class="help-card">
-              <div class="help-card-icon">🎨</div>
-              <div class="help-card-content">
-                <strong>열람 / 수정 상태 색상 구분</strong>
-                <p>왼쪽 탐색기에서 <strong>현재 열려 있는 메모는 파란색</strong>으로 강조되고, <strong>작성 및 수정 중인 메모는 따뜻한 오렌지색과 깜빡이는 점(●)</strong>으로 표시되어 저장 여부를 즉시 파악할 수 있습니다.</p>
+              <div class="help-card-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 2a10 10 0 0 0 0 20v-20z"/>
+                </svg>
               </div>
-            </div>
-
-            <div class="help-card">
-              <div class="help-card-icon">🌓</div>
               <div class="help-card-content">
                 <strong>다크 모드 / 라이트 모드</strong>
-                <p>좌측 상단 <code>🌙</code>/<code>☀️</code> 버튼을 누르면 언제든 다크 모드와 라이트 모드를 전환할 수 있습니다. 설정은 컴퓨터에 자동 저장되어 다음 실행 시에도 유지됩니다.</p>
+                <p>좌측 상단 테마 버튼으로 언제든 다크 모드와 라이트 모드를 전환할 수 있습니다. 설정은 컴퓨터에 자동 저장되어 다음 실행 시에도 유지됩니다.</p>
               </div>
             </div>
 
             <div class="help-card">
-              <div class="help-card-icon">🔢</div>
+              <div class="help-card-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="4" y1="9" x2="20" y2="9"/>
+                  <line x1="4" y1="15" x2="20" y2="15"/>
+                  <line x1="10" y1="3" x2="8" y2="21"/>
+                  <line x1="16" y1="3" x2="14" y2="21"/>
+                </svg>
+              </div>
               <div class="help-card-content">
                 <strong>줄 번호 & 자동 줄바꿈 토글</strong>
-                <p>하단 상태 표시줄의 <strong>[🔢 줄 번호]</strong>(단축키 <code>Alt+L</code>) 및 <strong>[↩ 자동 줄바꿈]</strong>(단축키 <code>Alt+Z</code>) 버튼으로 언제든 좌측 줄 번호 표시와 긴 문장 줄바꿈 여부를 손쉽게 전환할 수 있습니다.</p>
+                <p>하단 상태 표시줄의 <strong>[줄 번호]</strong>(단축키 <code>Alt+L</code>) 및 <strong>[자동 줄바꿈]</strong>(단축키 <code>Alt+Z</code>) 버튼으로 언제든 손쉽게 전환할 수 있습니다.</p>
               </div>
             </div>
 
             <div class="help-card">
-              <div class="help-card-icon">📊</div>
+              <div class="help-card-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2"/>
+                  <line x1="3" y1="9" x2="21" y2="9"/>
+                  <line x1="3" y1="15" x2="21" y2="15"/>
+                  <line x1="9" y1="3" x2="9" y2="21"/>
+                  <line x1="15" y1="3" x2="15" y2="21"/>
+                </svg>
+              </div>
               <div class="help-card-content">
                 <strong>엑셀 & 외부 파일 링크 및 더블클릭 실행</strong>
-                <p>본문에 <code>[[매출분석.xlsx]]</code> 또는 <code>[보고서](자료.pdf)</code> 형식으로 링크를 걸어두거나, 컴퓨터의 파일을 본문으로 드래그하면 링크가 자동 생성됩니다. 본문의 링크를 <strong>더블 클릭</strong>(또는 Ctrl+클릭)하면 엑셀, PDF 뷰어 등 전용 프로그램으로 즉시 실행됩니다.</p>
+                <p>본문에 <code>[[매출분석.xlsx]]</code> 형식으로 링크를 걸어두거나 파일을 본문으로 드래그하면 링크가 자동 생성됩니다. 본문의 링크를 <strong>더블 클릭</strong>하면 엑셀, PDF 뷰어 등 전용 프로그램으로 즉시 실행됩니다.</p>
               </div>
             </div>
 
             <div class="help-card">
-              <div class="help-card-icon">🚚</div>
+              <div class="help-card-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="5 9 2 12 5 15"/>
+                  <polyline points="9 5 12 2 15 5"/>
+                  <polyline points="15 19 12 22 9 19"/>
+                  <polyline points="19 9 22 12 19 15"/>
+                  <line x1="2" y1="12" x2="22" y2="12"/>
+                  <line x1="12" y1="2" x2="12" y2="22"/>
+                </svg>
+              </div>
               <div class="help-card-content">
                 <strong>파일 및 폴더 마우스 드래그 이동</strong>
-                <p>좌측 탐색기에서 파일이나 폴더를 클릭한 채로 다른 폴더 위로 끌어다 놓으면(드래그 앤 드롭) 해당 폴더로 즉시 이동됩니다. 최상위(루트) 폴더로 옮기려면 빈 공간이나 상단 폴더명으로 드래그하면 됩니다.</p>
+                <p>좌측 탐색기에서 파일이나 폴더를 클릭한 채로 다른 폴더 위로 끌어다 놓으면 해당 폴더로 즉시 이동됩니다. 최상위 폴더로 옮기려면 빈 공간이나 상단 폴더명으로 드래그합니다.</p>
               </div>
             </div>
           </div>
@@ -311,7 +491,7 @@
 
         <!-- Section 2: Shortcuts Table -->
         <div class="help-section">
-          <h4 class="help-section-title">⌨️ 키보드 단축키 모음</h4>
+          <h4 class="help-section-title">키보드 단축키 모음</h4>
           <table class="help-shortcuts-table">
             <thead>
               <tr>
@@ -398,7 +578,9 @@
     <div class="modal-card folder-browser-card">
       <div class="folder-browser-header">
         <div class="folder-browser-title-wrap">
-          <span style="font-size: 22px;">📂</span>
+          <svg class="folder-browser-title-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
           <div>
             <h3 class="modal-title" style="margin-bottom: 2px;">작업 폴더 선택</h3>
             <span class="folder-browser-current" id="fbCurrentPathDisplay" title="현재 경로"></span>
@@ -406,9 +588,19 @@
         </div>
         <div class="folder-browser-header-actions">
           <button class="btn btn-secondary btn-sm" id="btnFbNativePicker" title="Mac Finder / Windows 탐색기 창으로 직접 선택">
-            🖥️ 시스템 탐색기
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+              <line x1="8" y1="21" x2="16" y2="21"/>
+              <line x1="12" y1="17" x2="12" y2="21"/>
+            </svg>
+            <span>시스템 탐색기</span>
           </button>
-          <button class="btn btn-icon btn-sm" id="btnFbClose" title="닫기 (Esc)">✕</button>
+          <button class="btn btn-icon btn-sm" id="btnFbClose" title="닫기 (Esc)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -423,10 +615,19 @@
         <div class="folder-browser-main">
           <div class="fb-nav-bar">
             <button class="btn btn-secondary btn-sm" id="btnFbGoUp" title="상위 폴더로 이동">
-              ⬆️ 상위 폴더
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"/>
+                <polyline points="5 12 12 5 19 12"/>
+              </svg>
+              <span>상위 폴더</span>
             </button>
             <button class="btn btn-secondary btn-sm" id="btnFbNewFolder" title="현재 위치에 새 폴더 만들기">
-              + 새 폴더
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                <line x1="12" y1="11" x2="12" y2="17"/>
+                <line x1="9" y1="14" x2="15" y2="14"/>
+              </svg>
+              <span>새 폴더</span>
             </button>
           </div>
           <div class="fb-folder-list" id="fbFolderList"></div>
@@ -435,11 +636,11 @@
 
       <div class="modal-buttons folder-browser-footer">
         <button class="btn btn-secondary" id="btnFbCancel">취소</button>
-        <button class="btn btn-primary" id="btnFbConfirm">✅ 이 폴더로 선택</button>
+        <button class="btn btn-primary" id="btnFbConfirm">이 폴더로 선택</button>
       </div>
     </div>
   </div>
 
-  <script src="app.js?v=22"></script>
+  <script src="app.js?v=23"></script>
 </body>
 </html>
