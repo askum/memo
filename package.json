@@ -1,0 +1,22 @@
+{
+  "name": "desktop-memo",
+  "version": "1.0.0",
+  "description": "초경량 로컬 폴더 기반 데스크톱 메모 프로그램",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/askum/memo.git"
+  },
+  "keywords": [
+    "memo",
+    "notepad",
+    "desktop-app",
+    "markdown",
+    "wiki-links"
+  ],
+  "author": "askum",
+  "license": "MIT"
+}

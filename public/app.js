@@ -314,6 +314,11 @@ async function init() {
   try {
     const configRes = await fetch('/api/config');
     const config = await configRes.json();
+    if (config.version) {
+      document.querySelectorAll('.version-badge').forEach(b => b.textContent = config.version);
+      const fv = document.querySelector('.footer-version');
+      if (fv) fv.textContent = config.version;
+    }
     state.rootFolder = config.rootFolder;
     updateRootFolderDisplay();
     await loadTree();

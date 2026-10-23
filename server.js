@@ -11,6 +11,7 @@ const PORT = process.env.PORT || 3333;
 const DATA_DIR = path.join(__dirname, 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 const DEFAULT_MEMOS_DIR = path.join(__dirname, 'memos');
+const APP_VERSION = 'v1.0.0';
 
 // Ensure directories exist
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -355,7 +356,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/config' && req.method === 'GET') {
       const cfg = getConfig();
       ensureSeedFiles(cfg.rootFolder);
-      return sendJSON(res, 200, cfg);
+      return sendJSON(res, 200, { ...cfg, version: APP_VERSION });
     }
 
     // API: Update Config

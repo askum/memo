@@ -1,5 +1,10 @@
 # 📝 데스크톱 메모 (Desktop Memo)
 
+![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)
+![Dependencies](https://img.shields.io/badge/dependencies-Zero%20(Pure%20Node.js)-success.svg)
+![License](https://img.shields.io/badge/license-MIT-orange.svg)
+
 파이썬 환경 종속성이나 무거운 일렉트론, 검은 화면 렌더링 문제 없이 **어떤 PC(Windows / macOS)에서든 즉시 실행되는 초경량 로컬 폴더 트리형 데스크톱 메모 프로그램**입니다.  
 외부 패키지 설치(`npm install`)가 전혀 필요 없는 **순정 Node.js 표준 라이브러리(Zero Dependencies)** 기반으로 제작되었습니다.
 
