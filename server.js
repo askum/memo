@@ -606,6 +606,18 @@ const server = http.createServer(async (req, res) => {
       } else {
         fs.unlinkSync(targetPath);
       }
+
+      // If lastOpenedFile is the deleted item or located inside the deleted folder, clear it
+      const cfg = getConfig();
+      if (cfg.lastOpenedFile) {
+        const lastNorm = path.resolve(cfg.lastOpenedFile);
+        const targetNorm = path.resolve(targetPath);
+        if (lastNorm === targetNorm || lastNorm.startsWith(targetNorm + path.sep)) {
+          cfg.lastOpenedFile = '';
+          saveConfig(cfg);
+        }
+      }
+
       return sendJSON(res, 200, { success: true });
     }
 

@@ -1600,13 +1600,28 @@ function promptRename(oldPath, currName) {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         await loadTree();
-        if (state.currentFilePath === oldPath) {
-          state.currentFilePath = data.newPath;
-        }
-        navHistory.past = navHistory.past.map(p => p === oldPath ? data.newPath : p);
-        navHistory.future = navHistory.future.map(p => p === oldPath ? data.newPath : p);
-        if (state.currentFilePath === data.newPath) {
-          await loadFile(data.newPath, true);
+
+        const rewritePath = (p) => {
+          if (!p) return p;
+          if (p === oldPath) return data.newPath;
+          if (isPathEqualOrInside(p, oldPath)) {
+            const normP = p.replace(/\\/g, '/');
+            const normOld = oldPath.replace(/\\/g, '/').replace(/\/+$/, '');
+            const normNew = data.newPath.replace(/\\/g, '/').replace(/\/+$/, '');
+            return normNew + normP.slice(normOld.length);
+          }
+          return p;
+        };
+
+        navHistory.past = navHistory.past.map(rewritePath);
+        navHistory.future = navHistory.future.map(rewritePath);
+
+        if (state.currentFilePath) {
+          const updatedCurrent = rewritePath(state.currentFilePath);
+          if (updatedCurrent !== state.currentFilePath) {
+            state.currentFilePath = updatedCurrent;
+            await loadFile(updatedCurrent, true);
+          }
         }
       } catch (err) {
         alert(err.message);
@@ -1619,6 +1634,51 @@ function pathHasExtension(p) {
   return /\.(txt|md|markdown|json|csv)$/i.test(p);
 }
 
+// Cross-platform helper to check if a path is identical to or located inside a directory
+function isPathEqualOrInside(childPath, parentPath) {
+  if (!childPath || !parentPath) return false;
+  const normChild = childPath.replace(/\\/g, '/').replace(/\/+$/, '');
+  const normParent = parentPath.replace(/\\/g, '/').replace(/\/+$/, '');
+  return normChild === normParent || normChild.startsWith(normParent + '/');
+}
+
+// Clear active editor when currently opened file or its containing folder is deleted
+function clearActiveEditor() {
+  if (state.saveTimeout) {
+    clearTimeout(state.saveTimeout);
+    state.saveTimeout = null;
+  }
+  if (state.maxSaveTimeout) {
+    clearTimeout(state.maxSaveTimeout);
+    state.maxSaveTimeout = null;
+  }
+  state.isDirty = false;
+  state.lastSavedContent = null;
+  state.currentFilePath = null;
+
+  memoTextarea.value = '';
+  memoTextarea.classList.add('hidden');
+  if (editorWorkspace) editorWorkspace.classList.add('hidden');
+  emptyState.classList.remove('hidden');
+
+  fileTitle.textContent = '선택된 메모 없음';
+  filePathDisplay.textContent = '👈 왼쪽 트리에서 메모 파일을 선택하거나 새로 만드세요';
+  fileIcon.textContent = '📝';
+  saveStatusBadge.textContent = '';
+  saveStatusBadge.className = 'status-badge';
+
+  btnManualSave.disabled = true;
+  btnInsertLink.disabled = true;
+  if (btnToggleFindReplace) {
+    btnToggleFindReplace.disabled = true;
+    closeFindPanel();
+  }
+
+  updateStats();
+  updateCursorPos();
+  updateTreeActiveState();
+}
+
 function promptDelete(targetPath, name, isDir) {
   const itemType = isDir ? '폴더' : '메모';
   const displayTitle = getDisplayName(name, isDir);
@@ -1628,23 +1688,20 @@ function promptDelete(targetPath, name, isDir) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ targetPath })
     }).then(async (res) => {
-      if (!res.ok) throw new Error('삭제 실패');
-      if (state.currentFilePath === targetPath || (isDir && state.currentFilePath?.startsWith(targetPath + '/'))) {
-        state.currentFilePath = null;
-        emptyState.classList.remove('hidden');
-        if (editorWorkspace) editorWorkspace.classList.add('hidden');
-        memoTextarea.classList.add('hidden');
-        fileTitle.textContent = '선택된 메모 없음';
-        filePathDisplay.textContent = '👈 왼쪽 트리에서 메모 파일을 선택하거나 새로 만드세요';
-        btnManualSave.disabled = true;
-        if (btnToggleFindReplace) {
-          btnToggleFindReplace.disabled = true;
-          closeFindPanel();
-        }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || '삭제 실패');
+
+      // If the currently open file is the deleted item or is inside the deleted folder:
+      if (state.currentFilePath && isPathEqualOrInside(state.currentFilePath, targetPath)) {
+        clearActiveEditor();
       }
-      navHistory.past = navHistory.past.filter(p => p !== targetPath && (!isDir || !p.startsWith(targetPath + '/')));
-      navHistory.future = navHistory.future.filter(p => p !== targetPath && (!isDir || !p.startsWith(targetPath + '/')));
+
+      // Filter out deleted paths from navigation history
+      navHistory.past = navHistory.past.filter(p => !isPathEqualOrInside(p, targetPath));
+      navHistory.future = navHistory.future.filter(p => !isPathEqualOrInside(p, targetPath));
       updateNavButtons();
+
+      showToast(`🗑️ ${itemType} '${displayTitle}'이(가) 삭제되었습니다.`);
       await loadTree();
     }).catch(err => alert(err.message));
   }
