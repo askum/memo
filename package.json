@@ -4,7 +4,8 @@
   "description": "초경량 로컬 폴더 기반 데스크톱 메모 프로그램",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "release": "node scripts/release.js"
   },
   "repository": {
     "type": "git",
