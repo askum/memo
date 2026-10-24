@@ -44,12 +44,12 @@ function createZipArchive(sourceDir, outZipPath, options = {}) {
 
       if (stat.isDirectory()) {
         if (excludeDirs.has(item) || excludeDirs.has(rel)) continue;
-        fileEntries.push({ name: rel + '/', isDir: true, mtime: stat.mtime, data: Buffer.alloc(0) });
+        fileEntries.push({ name: rel + '/', isDir: true, mtime: stat.mtime, mode: stat.mode, data: Buffer.alloc(0) });
         walk(full);
       } else {
         if (excludeFiles.has(item) || item.endsWith('.zip') || item.endsWith('.tmp')) continue;
         const data = fs.readFileSync(full);
-        fileEntries.push({ name: rel, isDir: false, mtime: stat.mtime, data });
+        fileEntries.push({ name: rel, isDir: false, mtime: stat.mtime, mode: stat.mode, data });
       }
     }
   }
@@ -107,7 +107,7 @@ function createZipArchive(sourceDir, outZipPath, options = {}) {
     // Central directory header (46 bytes + nameBuf.length)
     const central = Buffer.alloc(46 + nameBuf.length);
     central.writeUInt32LE(0x02014b50, 0); // Signature
-    central.writeUInt16LE(20, 4);         // Version made by
+    central.writeUInt16LE(0x0314, 4);     // Version made by: Unix (0x03) + ZIP 2.0 (0x14)
     central.writeUInt16LE(20, 6);         // Version needed
     central.writeUInt16LE(0x0800, 8);     // Bit 11 UTF-8 Language Encoding Flag!
     central.writeUInt16LE(method, 10);
@@ -121,7 +121,11 @@ function createZipArchive(sourceDir, outZipPath, options = {}) {
     central.writeUInt16LE(0, 32);         // File comment length
     central.writeUInt16LE(0, 34);         // Disk number start
     central.writeUInt16LE(0, 36);         // Internal file attributes
-    const externalAttr = entry.isDir ? 0x10 : 0x20; // 0x10 = directory
+    
+    // Unix mode in upper 16 bits, DOS attributes in lower 8 bits
+    const dosAttr = entry.isDir ? 0x10 : 0x20;
+    const unixMode = (entry.mode || (entry.isDir ? 0o040755 : 0o100644)) & 0xFFFF;
+    const externalAttr = ((unixMode << 16) | dosAttr) >>> 0;
     central.writeUInt32LE(externalAttr, 38);
     central.writeUInt32LE(offset, 42);    // Relative offset of local header
     nameBuf.copy(central, 46);
