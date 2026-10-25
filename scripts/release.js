@@ -69,6 +69,14 @@ function main() {
     }
   }
 
+  // 3.5 Build Windows DesktopMemo.exe with embedded icon & version
+  try {
+    const { buildWindowsExe } = require('./build-win-exe');
+    buildWindowsExe(rootDir);
+  } catch (e) {
+    console.warn('⚠️ Windows exe 빌드 스킵:', e.message);
+  }
+
   // Commit any pending changes before tagging
   const status = runOutput('git status --porcelain');
   if (status) {

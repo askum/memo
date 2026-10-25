@@ -1,6 +1,6 @@
 # 📝 데스크톱 메모 (Desktop Memo)
 
-![Version](https://img.shields.io/badge/version-v1.0.9-blue.svg)
+![Version](https://img.shields.io/badge/version-v1.0.10-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)
 ![Dependencies](https://img.shields.io/badge/dependencies-Zero%20(Pure%20Node.js)-success.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
@@ -90,9 +90,9 @@
 ## 🚀 실행 방법 (마우스 더블 클릭)
 
 ### 🪟 Windows에서 실행
-1. **`DesktopMemo.vbs` 더블 클릭 (가장 추천)**:
-   - 검은색 CMD 창 없이 백그라운드로 로컬 서버를 띄우고 앱 모드로 즉시 실행됩니다.
-2. 또는 `DesktopMemo.bat` 더블 클릭으로도 실행할 수 있습니다.
+1. **`DesktopMemo.exe` 더블 클릭 (가장 추천)**:
+   - 전용 아이콘이 탑재된 윈도우 실행 파일입니다. 검은색 CMD 창 없이 백그라운드로 로컬 서버를 띄우고 앱 모드로 즉시 실행됩니다.
+2. 또는 `DesktopMemo.vbs` 및 `DesktopMemo.bat`으로도 실행할 수 있습니다.
 
 ### 🍎 Mac에서 실행
 1. **`DesktopMemo.app` 더블 클릭 (가장 추천)**:
@@ -110,12 +110,13 @@ memo/
 │   ├── index.html          # 에디터 마크업 및 모달 UI
 │   ├── style.css           # 모던 테마, 반응형, 애니메이션 CSS
 │   ├── app.js              # 에디터 로직, 단축키, 드래그앤드롭 핸들러
-│   └── favicon.*           # 앱 아이콘 에셋
+│   └── favicon.*           # 앱 아이콘 에셋 (.png, .svg, .ico)
 ├── server.js               # Node.js 순정 HTTP/REST API 백엔드 서버
+├── DesktopMemo.exe         # Windows 네이티브 GUI 실행 파일 (아이콘 탑재)
+├── DesktopMemo.vbs         # Windows 백그라운드 무창 런처
+├── DesktopMemo.bat         # Windows 콘솔 런처
 ├── DesktopMemo.app         # macOS 데스크톱 실행 애플리케이션
 ├── DesktopMemo.command     # macOS 터미널 런처
-├── DesktopMemo.bat         # Windows 원클릭 실행 스크립트
-├── DesktopMemo.vbs         # Windows 백그라운드 무창 런처
 └── README.md               # 프로젝트 안내 문서
 ```
 
