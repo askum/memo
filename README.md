@@ -1,6 +1,6 @@
 # 📝 데스크톱 메모 (Desktop Memo)
 
-![Version](https://img.shields.io/badge/version-v1.0.8-blue.svg)
+![Version](https://img.shields.io/badge/version-v1.0.9-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)
 ![Dependencies](https://img.shields.io/badge/dependencies-Zero%20(Pure%20Node.js)-success.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
@@ -90,14 +90,14 @@
 ## 🚀 실행 방법 (마우스 더블 클릭)
 
 ### 🪟 Windows에서 실행
-1. **`데스크톱 메모.vbs` 더블 클릭 (가장 추천)**:
+1. **`DesktopMemo.vbs` 더블 클릭 (가장 추천)**:
    - 검은색 CMD 창 없이 백그라운드로 로컬 서버를 띄우고 앱 모드로 즉시 실행됩니다.
-2. 또는 `데스크톱 메모.bat` 더블 클릭으로도 실행할 수 있습니다.
+2. 또는 `DesktopMemo.bat` 더블 클릭으로도 실행할 수 있습니다.
 
 ### 🍎 Mac에서 실행
-1. **`데스크톱 메모.app` 더블 클릭 (가장 추천)**:
+1. **`DesktopMemo.app` 더블 클릭 (가장 추천)**:
    - 일반 데스크톱 앱처럼 독(Dock)에 등록하고 독립 창으로 실행됩니다.
-2. 또는 `데스크톱 메모.command` 더블 클릭으로 실행할 수 있습니다.
+2. 또는 `DesktopMemo.command` 더블 클릭으로 실행할 수 있습니다.
 
 ---
 
@@ -112,10 +112,10 @@ memo/
 │   ├── app.js              # 에디터 로직, 단축키, 드래그앤드롭 핸들러
 │   └── favicon.*           # 앱 아이콘 에셋
 ├── server.js               # Node.js 순정 HTTP/REST API 백엔드 서버
-├── 데스크톱 메모.app       # macOS 데스크톱 실행 애플리케이션
-├── 데스크톱 메모.command   # macOS 터미널 런처
-├── 데스크톱 메모.bat       # Windows 원클릭 실행 스크립트
-├── 데스크톱 메모.vbs       # Windows 백그라운드 무창 런처
+├── DesktopMemo.app         # macOS 데스크톱 실행 애플리케이션
+├── DesktopMemo.command     # macOS 터미널 런처
+├── DesktopMemo.bat         # Windows 원클릭 실행 스크립트
+├── DesktopMemo.vbs         # Windows 백그라운드 무창 런처
 └── README.md               # 프로젝트 안내 문서
 ```
 
