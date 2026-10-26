@@ -580,10 +580,8 @@ const server = http.createServer(async (req, res) => {
 
     // API: Create File
     if (pathname === '/api/create-file' && req.method === 'POST') {
-      let { dirPath, fileName } = await parseBody(req);
+      let { dirPath, fileName, autoName } = await parseBody(req);
       fileName = (fileName || '').trim();
-      if (!fileName) return sendJSON(res, 400, { error: '파일 이름을 입력하세요.' });
-      if (!path.extname(fileName)) fileName += '.txt';
 
       let targetDir = dirPath;
       if (targetDir && fs.existsSync(targetDir)) {
@@ -595,13 +593,29 @@ const server = http.createServer(async (req, res) => {
         targetDir = getConfig().rootFolder;
       }
 
-      const fullPath = path.join(targetDir, fileName);
-      if (fs.existsSync(fullPath)) {
-        return sendJSON(res, 400, { error: `'${fileName}' 파일이 이미 존재합니다.` });
+      // If fileName is empty or autoName is true, generate automatic unique name (새 메모.txt, 새 메모 1.txt, ...)
+      if (!fileName || autoName) {
+        let base = fileName || '새 메모';
+        if (base.toLowerCase().endsWith('.txt')) base = base.slice(0, -4);
+        let candidate = `${base}.txt`;
+        let counter = 1;
+        while (fs.existsSync(path.join(targetDir, candidate))) {
+          candidate = `${base} ${counter}.txt`;
+          counter++;
+        }
+        fileName = candidate;
+      } else {
+        if (!path.extname(fileName)) fileName += '.txt';
+        const fullPath = path.join(targetDir, fileName);
+        if (fs.existsSync(fullPath)) {
+          return sendJSON(res, 400, { error: `'${fileName}' 파일이 이미 존재합니다.` });
+        }
       }
+
+      const fullPath = path.join(targetDir, fileName);
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, '', 'utf-8');
-      return sendJSON(res, 200, { success: true, path: fullPath });
+      return sendJSON(res, 200, { success: true, path: fullPath, fileName });
     }
 
     // API: Create Folder

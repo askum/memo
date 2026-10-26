@@ -449,9 +449,9 @@ async function moveTreeItem(sourcePath, targetDirPath) {
     // If the currently open file was moved, update state and header paths
     if (state.currentFilePath && state.currentFilePath.replace(/\\/g, '/') === srcNorm) {
       state.currentFilePath = data.newPath;
-      const relPath = data.newPath.replace(state.rootFolder, '').replace(/^[\\/]/, '') || fileName;
-      if (filePathDisplay) filePathDisplay.textContent = getDisplayName(relPath, false);
-      if (fileTitle) fileTitle.textContent = getDisplayName(fileName, false);
+      if (filePathDisplay) filePathDisplay.textContent = getDisplayPathFromRoot(data.newPath);
+      const cleanNew = getDisplayName(fileName, false);
+      renderHeaderFileTitle(cleanNew, state.isDirty);
     }
 
     await loadTree();
@@ -742,12 +742,20 @@ async function loadFile(filePath, isNavigatingHistory = false) {
     }
     updateNavButtons();
 
-    // Update Header (hide extension)
+    // Update Header (hide extension & make clickable to rename)
     const fileName = filePath.split(/[\\/]/).pop();
     fileIcon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="file-title-svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
-    fileTitle.textContent = getDisplayName(fileName, false);
-    const relPath = filePath.replace(state.rootFolder, '').replace(/^[\\/]/, '') || fileName;
-    filePathDisplay.textContent = getDisplayName(relPath, false);
+    const cleanTitle = getDisplayName(fileName, false);
+    renderHeaderFileTitle(cleanTitle, false);
+    fileTitle.classList.add('editable');
+    fileTitle.title = '클릭하여 메모 이름 변경';
+    fileTitle.onclick = () => {
+      if (state.currentFilePath) {
+        const curName = state.currentFilePath.split(/[\\/]/).pop();
+        promptRename(state.currentFilePath, curName);
+      }
+    };
+    filePathDisplay.textContent = getDisplayPathFromRoot(filePath);
 
     // Show Editor
     emptyState.classList.add('hidden');
@@ -933,11 +941,7 @@ function updateUnsavedIndicators(isUnsaved) {
   const cleanName = getDisplayName(fileName, false);
 
   // 1. Header Title Dot
-  if (isUnsaved) {
-    fileTitle.innerHTML = `${escapeHtml(cleanName)} <span class="unsaved-dot" title="저장되지 않음">●</span>`;
-  } else {
-    fileTitle.textContent = cleanName;
-  }
+  renderHeaderFileTitle(cleanName, isUnsaved);
 
   // 2. Left Tree Active/Editing Highlight & Dot
   updateTreeActiveState();
@@ -1533,35 +1537,64 @@ function closeModal() {
   modalCallback = null;
 }
 
-function promptNewFile(targetDir) {
+// Helper to render the header file title with unsaved dot and rename icon
+function renderHeaderFileTitle(cleanTitle, isUnsaved) {
+  if (!fileTitle) return;
+  const renameIconSvg = `<svg class="file-title-rename-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+  if (isUnsaved) {
+    fileTitle.innerHTML = `<span class="file-title-text">${escapeHtml(cleanTitle)}</span> <span class="unsaved-dot" title="저장되지 않음">●</span> ${renameIconSvg}`;
+  } else {
+    fileTitle.innerHTML = `<span class="file-title-text">${escapeHtml(cleanTitle)}</span> ${renameIconSvg}`;
+  }
+}
+
+// Display path starting from the root folder shown in the top-left (e.g. memos/업무)
+function getDisplayPathFromRoot(targetPath) {
+  if (!targetPath || !state.rootFolder) {
+    return currentFolderNameElement ? currentFolderNameElement.textContent.trim() : '루트 폴더';
+  }
+  const normTarget = targetPath.replace(/\\/g, '/').replace(/\/+$/, '');
+  const normRoot = state.rootFolder.replace(/\\/g, '/').replace(/\/+$/, '');
+  const rootBaseName = normRoot.split('/').pop() || 'memos';
+
+  if (normTarget === normRoot) {
+    return rootBaseName;
+  }
+  if (normTarget.startsWith(normRoot + '/')) {
+    const rel = normTarget.slice(normRoot.length + 1);
+    return `${rootBaseName}/${rel}`;
+  }
+  return normTarget.split('/').slice(-2).join('/') || rootBaseName;
+}
+
+async function promptNewFile(targetDir) {
   const dir = targetDir || getActiveTargetDir();
-  const folderRel = dir.replace(state.rootFolder, '').replace(/^[\\/]/, '') || '루트 폴더';
-  showModal(
-    '새 메모 만들기',
-    `'${folderRel}' 위치에 생성할 메모 이름을 입력하세요 (예: 회의록, 아이디어):`,
-    '',
-    async (fileName) => {
-      if (!fileName.trim()) return;
-      try {
-        const res = await fetch('/api/create-file', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dirPath: dir, fileName: fileName.trim() })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        await loadTree();
-        await loadFile(data.path);
-      } catch (err) {
-        alert(err.message);
-      }
+  try {
+    const res = await fetch('/api/create-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dirPath: dir, autoName: true })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '새 메모 생성 실패');
+
+    await loadTree();
+    await loadFile(data.path);
+
+    if (memoTextarea) {
+      memoTextarea.focus();
     }
-  );
+
+    const cleanTitle = getDisplayName(data.fileName, false);
+    showToast(`✨ '${cleanTitle}' 생성됨 (제목을 클릭해 이름 변경 가능)`);
+  } catch (err) {
+    alert(err.message);
+  }
 }
 
 function promptNewFolder(targetDir) {
   const dir = targetDir || getActiveTargetDir();
-  const folderRel = dir.replace(state.rootFolder, '').replace(/^[\\/]/, '') || '루트 폴더';
+  const folderRel = getDisplayPathFromRoot(dir);
   showModal(
     '새 폴더 만들기',
     `'${folderRel}' 위치에 생성할 폴더 이름을 입력하세요:`,
@@ -1667,6 +1700,9 @@ function clearActiveEditor() {
   emptyState.classList.remove('hidden');
 
   fileTitle.textContent = '선택된 메모 없음';
+  fileTitle.classList.remove('editable');
+  fileTitle.title = '';
+  fileTitle.onclick = null;
   filePathDisplay.textContent = '왼쪽 목록에서 메모를 선택하거나 새로 만드세요';
   fileIcon.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="file-title-svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`;
   saveStatusBadge.textContent = '';

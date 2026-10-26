@@ -720,6 +720,33 @@ button svg,
   line-height: 1.2;
 }
 
+.file-title.editable {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  margin: -2px -6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.file-title.editable:hover {
+  background: var(--bg-hover);
+  color: var(--accent-primary);
+}
+
+.file-title-rename-icon {
+  opacity: 0;
+  color: var(--text-muted);
+  transition: opacity var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.file-title.editable:hover .file-title-rename-icon {
+  opacity: 0.8;
+}
+
 .file-path {
   font-size: 11px;
   color: var(--text-muted);

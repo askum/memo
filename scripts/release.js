@@ -13,6 +13,16 @@ function runOutput(cmd) {
   return execSync(cmd, { encoding: 'utf8' }).trim();
 }
 
+function extractChangelogForTag(rootDir, tag) {
+  const changelogPath = path.join(rootDir, 'CHANGELOG.md');
+  if (!fs.existsSync(changelogPath)) return '';
+  const content = fs.readFileSync(changelogPath, 'utf8');
+  const tagEscaped = tag.replace(/\./g, '\\.');
+  const regex = new RegExp(`##\\s*\\[${tagEscaped}\\][^\\n]*\\n([\\s\\S]*?)(?=\\n##\\s*\\[|$)`, 'i');
+  const match = content.match(regex);
+  return match ? match[1].trim() : '';
+}
+
 function main() {
   const rootDir = path.resolve(__dirname, '..');
   process.chdir(rootDir);
@@ -77,12 +87,24 @@ function main() {
     console.warn('⚠️ Windows exe 빌드 스킵:', e.message);
   }
 
+  // Extract release notes from CHANGELOG.md
+  const releaseNotes = extractChangelogForTag(rootDir, tag);
+  const notesFile = path.join(rootDir, '.release_notes.tmp');
+  if (releaseNotes) {
+    fs.writeFileSync(notesFile, releaseNotes, 'utf8');
+  }
+
   // Commit any pending changes before tagging
   const status = runOutput('git status --porcelain');
   if (status) {
     console.log('📝 변경 사항 자동 커밋 및 푸시 중...');
     run('git add -A');
-    run(`git commit -m "chore: release ${tag}"`);
+    if (releaseNotes) {
+      const commitSummary = releaseNotes.split('\n')[0].replace(/^#+\s*/, '') || `Release ${tag}`;
+      run(`git commit -m "chore: release ${tag}" -m "${commitSummary.replace(/"/g, '\\"')}"`);
+    } else {
+      run(`git commit -m "chore: release ${tag}"`);
+    }
     run('git push origin main');
   }
 
@@ -114,6 +136,9 @@ function main() {
   // 6. Create or update GitHub Release
   console.log(`🌐 GitHub 릴리즈 등록 중 (${tag})...`);
   const zipArg = fs.existsSync(zipPath) ? `"${zipPath}"` : '';
+  const notesArg = (releaseNotes && fs.existsSync(notesFile))
+    ? `--notes-file "${notesFile}"`
+    : '--generate-notes';
 
   try {
     // Check if release exists
@@ -125,14 +150,20 @@ function main() {
       if (zipArg) {
         run(`gh release upload "${tag}" ${zipArg} --clobber`);
       }
+      if (releaseNotes && fs.existsSync(notesFile)) {
+        run(`gh release edit "${tag}" --notes-file "${notesFile}"`);
+      }
     } else {
-      run(`gh release create "${tag}" ${zipArg} --title "${tag}: 데스크톱 메모 업데이트" --generate-notes`);
+      run(`gh release create "${tag}" ${zipArg} --title "${tag}: 데스크톱 메모 업데이트" ${notesArg}`);
     }
     console.log(`\n🎉 ${tag} 릴리즈가 성공적으로 GitHub에 반영되었습니다!`);
     console.log(`🔗 https://github.com/askum/memo/releases/tag/${tag}\n`);
   } finally {
     if (fs.existsSync(zipPath)) {
       fs.unlinkSync(zipPath);
+    }
+    if (fs.existsSync(notesFile)) {
+      fs.unlinkSync(notesFile);
     }
   }
 }

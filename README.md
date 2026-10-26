@@ -1,6 +1,7 @@
 # 📝 데스크톱 메모 (Desktop Memo)
 
-![Version](https://img.shields.io/badge/version-v1.0.10-blue.svg)
+![Version](https://img.shields.io/badge/version-v1.0.11-blue.svg)
+[![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-informational.svg)](CHANGELOG.md)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)
 ![Dependencies](https://img.shields.io/badge/dependencies-Zero%20(Pure%20Node.js)-success.svg)
 ![License](https://img.shields.io/badge/license-MIT-orange.svg)
@@ -117,6 +118,7 @@ memo/
 ├── DesktopMemo.bat         # Windows 콘솔 런처
 ├── DesktopMemo.app         # macOS 데스크톱 실행 애플리케이션
 ├── DesktopMemo.command     # macOS 터미널 런처
+├── CHANGELOG.md            # 버전별 변경 이력 및 릴리즈 노트
 └── README.md               # 프로젝트 안내 문서
 ```
 
