@@ -1,6 +1,6 @@
 # 📝 데스크톱 메모 (Desktop Memo)
 
-![Version](https://img.shields.io/badge/version-v1.0.12-blue.svg)
+![Version](https://img.shields.io/badge/version-v1.0.13-blue.svg)
 [![Changelog](https://img.shields.io/badge/changelog-CHANGELOG.md-informational.svg)](CHANGELOG.md)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)
 ![Dependencies](https://img.shields.io/badge/dependencies-Zero%20(Pure%20Node.js)-success.svg)

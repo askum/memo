@@ -1396,6 +1396,15 @@ button svg,
   background: var(--bg-hover);
 }
 
+.link-item-row.link-item-url-row {
+  background: rgba(59, 130, 246, 0.06);
+  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.link-item-row.link-item-url-row:hover {
+  background: rgba(59, 130, 246, 0.12);
+}
+
 .link-item-icon {
   display: flex;
   align-items: center;

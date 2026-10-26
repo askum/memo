@@ -220,9 +220,13 @@ function findFileInDir(dir, targetName) {
 // Open file or URL with default system application (Excel, PDF viewer, Word, Browser, etc.)
 function openExternalFile(filePathOrUrl) {
   return new Promise((resolve) => {
-    const isUrl = /^https?:\/\//i.test(filePathOrUrl);
-    if (!isUrl && !fs.existsSync(filePathOrUrl)) {
-      return resolve({ success: false, error: '파일을 찾을 수 없습니다: ' + filePathOrUrl });
+    let target = filePathOrUrl.trim();
+    if (/^www\./i.test(target)) {
+      target = 'https://' + target;
+    }
+    const isUrl = /^https?:\/\//i.test(target);
+    if (!isUrl && !fs.existsSync(target)) {
+      return resolve({ success: false, error: '파일을 찾을 수 없습니다: ' + target });
     }
 
     if (process.platform === 'win32') {
@@ -734,6 +738,9 @@ const server = http.createServer(async (req, res) => {
       if (!target) return sendJSON(res, 400, { error: 'Target is required' });
 
       let resolvedTarget = target.trim();
+      if (/^www\./i.test(resolvedTarget)) {
+        resolvedTarget = 'https://' + resolvedTarget;
+      }
       const isUrl = /^https?:\/\//i.test(resolvedTarget);
 
       if (!isUrl) {

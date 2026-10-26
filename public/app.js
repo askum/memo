@@ -139,9 +139,9 @@ function isTextMemo(fileName) {
 function getFileIcon(fileName, isDir, isOpen = false) {
   if (isDir) {
     if (isOpen) {
-      return `<svg class="tree-item-icon-svg icon-folder open" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19h14a2 2 0 0 0 1.84-2.75L18.8 11a2 2 0 0 0-1.84-1.25H6.04a2 2 0 0 0-1.84 1.25L2.16 16.25A2 2 0 0 0 4 19z"/><path d="M4 19V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2"/></svg>`;
+      return `<svg class="tree-item-icon-svg icon-folder open" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/></svg>`;
     }
-    return `<svg class="tree-item-icon-svg icon-folder" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+    return `<svg class="tree-item-icon-svg icon-folder" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>`;
   }
   const ext = (fileName || '').split('.').pop().toLowerCase();
   switch (ext) {
@@ -220,8 +220,13 @@ async function openExternalLink(target) {
     });
     const data = await res.json();
     if (res.ok && data.success) {
-      const fileName = target.split(/[\\/]/).pop();
-      showToast(`🚀 '${fileName}' 파일을 별도 프로그램으로 열었습니다.`);
+      const isUrl = /^https?:\/\//i.test(target);
+      if (isUrl) {
+        showToast(`🌐 '${target}' 웹페이지를 브라우저로 열었습니다.`);
+      } else {
+        const fileName = target.split(/[\\/]/).pop();
+        showToast(`🚀 '${fileName}' 파일을 별도 프로그램으로 열었습니다.`);
+      }
     } else {
       alert(data.error || `'${target}' 파일을 열 수 없습니다.`);
     }
@@ -1061,9 +1066,12 @@ function findMemoPath(target) {
 
 // Jump to linked memo or launch external file (.xlsx, .pdf, etc.) in system application
 async function jumpToMemo(target) {
-  const cleanTarget = target.trim().replace(/^\[\[/, '').replace(/\]\]$/, '');
+  let cleanTarget = target.trim().replace(/^\[\[/, '').replace(/\]\]$/, '');
   if (!cleanTarget) return;
 
+  if (/^www\./i.test(cleanTarget)) {
+    cleanTarget = 'https://' + cleanTarget;
+  }
   const isUrl = /^https?:\/\//i.test(cleanTarget);
   const ext = cleanTarget.includes('.') ? cleanTarget.split('.').pop().toLowerCase() : '';
   const isExternalExt = /^(xlsx?|csv|pdf|docx?|pptx?|hwp|hwpx|png|jpe?g|gif|webp|svg|zip|rar|7z|tar|gz|mp4|mov|avi|mp3|wav|m4a|exe|msi)$/i.test(ext);
@@ -1282,25 +1290,109 @@ function replaceAll() {
   findCount.style.color = '#10b981';
 }
 
+// Helper: Detect if string is a valid web URL or domain
+function detectUrl(raw) {
+  if (!raw) return null;
+  const str = raw.trim();
+  if (/^https?:\/\//i.test(str)) {
+    return str;
+  }
+  if (/^www\./i.test(str)) {
+    return 'https://' + str;
+  }
+  const fileExts = /^(txt|md|markdown|xlsx?|csv|pdf|docx?|pptx?|hwp|hwpx|png|jpe?g|gif|webp|svg|zip|rar|7z|tar|gz|mp3|wav|mp4|mov|avi|js|html|css|json|py)$/i;
+  const m = str.match(/^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+([a-zA-Z]{2,63})(\/.*)?$/);
+  if (m) {
+    const tld = m[3];
+    const hasPath = Boolean(m[4]);
+    if (!hasPath && fileExts.test(tld)) {
+      return null;
+    }
+    return 'https://' + str;
+  }
+  return null;
+}
+
+// Track active selection when Link Modal is opened
+let linkModalSelection = { start: 0, end: 0, selectedText: '' };
+
 // Open Link Insertion Modal
 function openLinkSelectorModal() {
+  const start = memoTextarea.selectionStart || 0;
+  const end = memoTextarea.selectionEnd || 0;
+  linkModalSelection = {
+    start,
+    end,
+    selectedText: memoTextarea.value.substring(start, end).trim()
+  };
+
   const allFiles = getAllFiles(state.treeData).filter(f => f.path !== state.currentFilePath);
   linkSearchInput.value = '';
-  renderLinkItems(allFiles);
+  renderLinkItems(allFiles, '');
   linkModalOverlay.classList.remove('hidden');
   linkSearchInput.focus();
 
   linkSearchInput.oninput = () => {
-    const q = linkSearchInput.value.toLowerCase().trim();
+    const raw = linkSearchInput.value;
+    const q = raw.toLowerCase().trim();
     const filtered = allFiles.filter(f => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q));
-    renderLinkItems(filtered);
+    renderLinkItems(filtered, raw);
+  };
+
+  linkSearchInput.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const q = linkSearchInput.value.trim();
+      const detected = detectUrl(q);
+      if (detected) {
+        const selText = linkModalSelection.selectedText;
+        const linkText = selText ? `[${selText}](${detected})` : `[${detected}](${detected})`;
+        insertLinkIntoTextarea(linkText);
+        linkModalOverlay.classList.add('hidden');
+        return;
+      }
+      const firstRow = linkItemsList.querySelector('.link-item-row');
+      if (firstRow) {
+        firstRow.click();
+      }
+    } else if (e.key === 'Escape') {
+      linkModalOverlay.classList.add('hidden');
+      memoTextarea.focus();
+    }
   };
 }
 
-function renderLinkItems(files) {
+function renderLinkItems(files, query = '') {
   linkItemsList.innerHTML = '';
-  if (files.length === 0) {
-    linkItemsList.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 12px;">일치하는 메모나 파일이 없습니다.</div>';
+  const detectedUrl = detectUrl(query);
+  const selText = linkModalSelection ? linkModalSelection.selectedText : '';
+
+  if (detectedUrl) {
+    const urlRow = document.createElement('div');
+    urlRow.className = 'link-item-row link-item-url-row';
+    const linkText = selText ? `[${selText}](${detectedUrl})` : `[${detectedUrl}](${detectedUrl})`;
+    urlRow.innerHTML = `
+      <span class="link-item-icon" style="color: #3b82f6;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="2" y1="12" x2="22" y2="12"></line>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+        </svg>
+      </span>
+      <div style="display: flex; flex-direction: column; overflow: hidden; flex: 1; min-width: 0;">
+        <span class="link-item-name" style="font-weight: 600; color: var(--accent);">웹 링크 삽입: ${escapeHtml(linkText)}</span>
+        <span class="link-item-path" style="font-size: 11px; opacity: 0.8;">클릭하거나 Enter 키를 누르면 본문에 삽입됩니다</span>
+      </div>
+    `;
+    urlRow.onclick = () => {
+      insertLinkIntoTextarea(linkText);
+      linkModalOverlay.classList.add('hidden');
+    };
+    linkItemsList.appendChild(urlRow);
+  }
+
+  if (files.length === 0 && !detectedUrl) {
+    linkItemsList.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 12px;">일치하는 메모나 파일이 없습니다. (웹 URL을 직접 입력할 수도 있습니다)</div>';
     return;
   }
 
@@ -1336,12 +1428,19 @@ function renderLinkItems(files) {
 }
 
 function insertLinkIntoTextarea(linkText) {
-  const start = memoTextarea.selectionStart;
-  const end = memoTextarea.selectionEnd;
+  const start = (linkModalSelection && typeof linkModalSelection.start === 'number')
+    ? linkModalSelection.start
+    : memoTextarea.selectionStart;
+  const end = (linkModalSelection && typeof linkModalSelection.end === 'number')
+    ? linkModalSelection.end
+    : memoTextarea.selectionEnd;
   const val = memoTextarea.value;
   memoTextarea.value = val.substring(0, start) + linkText + val.substring(end);
   memoTextarea.selectionStart = memoTextarea.selectionEnd = start + linkText.length;
   memoTextarea.focus();
+
+  // Reset modal selection
+  linkModalSelection = { start: memoTextarea.selectionStart, end: memoTextarea.selectionEnd, selectedText: '' };
 
   state.isDirty = true;
   updateSaveStatus('editing');
@@ -2061,7 +2160,16 @@ function setupEventListeners() {
 
   // Link Insertion
   btnInsertLink.onclick = openLinkSelectorModal;
-  btnLinkModalCancel.onclick = () => linkModalOverlay.classList.add('hidden');
+  btnLinkModalCancel.onclick = () => {
+    linkModalOverlay.classList.add('hidden');
+    memoTextarea.focus();
+  };
+  linkModalOverlay.onclick = (e) => {
+    if (e.target === linkModalOverlay) {
+      linkModalOverlay.classList.add('hidden');
+      memoTextarea.focus();
+    }
+  };
 
   // External File Link Selection in Modal
   if (btnLinkExternalFile && externalFileInput) {
@@ -2296,6 +2404,30 @@ function setupEventListeners() {
   });
   memoTextarea.addEventListener('select', highlightActiveLine);
 
+  // Smart paste: if clipboard contains a URL and text is selected in memoTextarea, convert to [selectedText](URL)
+  memoTextarea.addEventListener('paste', (e) => {
+    const start = memoTextarea.selectionStart;
+    const end = memoTextarea.selectionEnd;
+    if (start !== end) {
+      const pasteText = (e.clipboardData || window.clipboardData).getData('text');
+      const detected = detectUrl(pasteText);
+      if (detected) {
+        e.preventDefault();
+        const selectedText = memoTextarea.value.substring(start, end);
+        const mdLink = `[${selectedText}](${detected})`;
+        if (!document.execCommand('insertText', false, mdLink)) {
+          memoTextarea.value = memoTextarea.value.substring(0, start) + mdLink + memoTextarea.value.substring(end);
+          memoTextarea.selectionStart = memoTextarea.selectionEnd = start + mdLink.length;
+        }
+        state.isDirty = true;
+        updateSaveStatus('editing');
+        updateStats();
+        if (state.saveTimeout) clearTimeout(state.saveTimeout);
+        state.saveTimeout = setTimeout(() => saveCurrentFile(false), 1000);
+      }
+    }
+  });
+
   // Search Filter
   treeSearchInput.addEventListener('input', (e) => {
     const query = e.target.value.toLowerCase().trim();
@@ -2370,7 +2502,7 @@ function handleTextareaLinkClick() {
     charCount = wEnd;
     if (colInLine >= wStart && colInLine <= wEnd) {
       const cleanW = w.replace(/^[<("'{\[]+|[>)"'}\],.]+$/g, '');
-      if (/^https?:\/\//i.test(cleanW) || /\.(xlsx?|csv|pdf|docx?|pptx?|hwp|hwpx|png|jpe?g|gif|webp|svg|zip)$/i.test(cleanW)) {
+      if (/^https?:\/\//i.test(cleanW) || /^www\./i.test(cleanW) || /\.(xlsx?|csv|pdf|docx?|pptx?|hwp|hwpx|png|jpe?g|gif|webp|svg|zip)$/i.test(cleanW)) {
         jumpToMemo(cleanW);
         return;
       }
