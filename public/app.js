@@ -31,6 +31,7 @@ let navHistory = {
 // DOM Elements
 const sidebar = document.getElementById('sidebar');
 const splitter = document.getElementById('splitter');
+const currentFolderCard = document.getElementById('currentFolderCard');
 const currentFolderName = document.getElementById('currentFolderName');
 const btnChangeFolder = document.getElementById('btnChangeFolder');
 const btnNewFile = document.getElementById('btnNewFile');
@@ -135,8 +136,11 @@ function isTextMemo(fileName) {
 }
 
 // Helper: Get icon SVG based on file type
-function getFileIcon(fileName, isDir) {
+function getFileIcon(fileName, isDir, isOpen = false) {
   if (isDir) {
+    if (isOpen) {
+      return `<svg class="tree-item-icon-svg icon-folder open" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19h14a2 2 0 0 0 1.84-2.75L18.8 11a2 2 0 0 0-1.84-1.25H6.04a2 2 0 0 0-1.84 1.25L2.16 16.25A2 2 0 0 0 4 19z"/><path d="M4 19V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2"/></svg>`;
+    }
     return `<svg class="tree-item-icon-svg icon-folder" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
   }
   const ext = (fileName || '').split('.').pop().toLowerCase();
@@ -580,7 +584,7 @@ function createTreeNode(item) {
   // Icon
   const icon = document.createElement('span');
   icon.className = 'tree-item-icon';
-  icon.innerHTML = getFileIcon(item.name, item.isDir);
+  icon.innerHTML = getFileIcon(item.name, item.isDir, true);
   row.appendChild(icon);
 
   // Label (without extension for text memos, with extension for external files)
@@ -646,19 +650,24 @@ function createTreeNode(item) {
       e.stopPropagation();
       const isOpen = chevron.classList.toggle('open');
       childrenContainer.classList.toggle('collapsed', !isOpen);
-      icon.textContent = isOpen ? '📁' : '📂';
+      icon.innerHTML = getFileIcon(item.name, true, isOpen);
     };
   }
 
   // Row Click
   row.onclick = () => {
+    state.isRootTarget = false;
+    if (currentFolderCard) currentFolderCard.classList.remove('selected-target');
+    document.querySelectorAll('.tree-item.selected').forEach(el => el.classList.remove('selected'));
+    row.classList.add('selected');
+
     state.selectedNodePath = item.path;
     state.selectedNodeIsDir = item.isDir;
     if (item.isDir) {
       if (childrenContainer) {
         const isOpen = chevron.classList.toggle('open');
         childrenContainer.classList.toggle('collapsed', !isOpen);
-        icon.textContent = isOpen ? '📁' : '📂';
+        icon.innerHTML = getFileIcon(item.name, true, isOpen);
       }
     } else {
       if (isTextMemo(item.name)) {
@@ -1748,18 +1757,29 @@ function promptDelete(targetPath, name, isDir) {
   }
 }
 
+function selectRootFolder() {
+  state.selectedNodePath = state.rootFolder;
+  state.selectedNodeIsDir = true;
+  state.isRootTarget = true;
+
+  document.querySelectorAll('.tree-item.selected').forEach(el => el.classList.remove('selected'));
+  if (currentFolderCard) {
+    currentFolderCard.classList.add('selected-target');
+  }
+  const rootName = state.rootFolder ? state.rootFolder.split(/[\\/]/).pop() : 'memos';
+  showToast(`📁 최상단 폴더 '${rootName}' 선택됨 (여기에 새 메모/폴더 생성)`);
+}
+
 function getActiveTargetDir() {
+  if (state.isRootTarget || state.selectedNodePath === state.rootFolder) {
+    return state.rootFolder;
+  }
   if (state.selectedNodePath) {
     if (state.selectedNodeIsDir) {
       return state.selectedNodePath;
     }
     // If selected node is a file, return its parent directory
-    const parts = state.selectedNodePath.split(/[\\/]/);
-    parts.pop();
-    return parts.join('/') || state.rootFolder;
-  }
-  if (state.currentFilePath) {
-    const parts = state.currentFilePath.split(/[\\/]/);
+    const parts = state.selectedNodePath.replace(/\\/g, '/').split('/');
     parts.pop();
     return parts.join('/') || state.rootFolder;
   }
@@ -1864,7 +1884,13 @@ function handleChangeFolder() {
 // Event Listeners
 function setupEventListeners() {
   btnChangeFolder.onclick = handleChangeFolder;
-  currentFolderName.onclick = handleChangeFolder;
+  if (currentFolderCard) {
+    currentFolderCard.onclick = (e) => {
+      if (!e.target.closest('#btnChangeFolder')) {
+        selectRootFolder();
+      }
+    };
+  }
   btnNewFile.onclick = () => promptNewFile();
   btnNewFolder.onclick = () => promptNewFolder();
   btnRefresh.onclick = loadTree;
@@ -2116,6 +2142,15 @@ function setupEventListeners() {
       }
     });
   });
+
+  // Clicking empty space in tree deselects subfolder and targets root folder
+  if (treeScrollContainer) {
+    treeScrollContainer.addEventListener('click', (e) => {
+      if (!e.target.closest('.tree-item')) {
+        selectRootFolder();
+      }
+    });
+  }
 
   // Line Numbers Toggle
   if (btnToggleLineNumbers) {

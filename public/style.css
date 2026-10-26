@@ -289,6 +289,12 @@ button svg,
   background: var(--bg-hover-solid);
 }
 
+.folder-select-box.selected-target {
+  border-color: var(--accent-primary);
+  background: var(--accent-subtle);
+  box-shadow: 0 0 0 2px var(--accent-subtle);
+}
+
 .folder-meta {
   display: flex;
   align-items: center;
@@ -452,6 +458,15 @@ button svg,
   background: var(--bg-active);
   color: var(--text-primary);
   font-weight: 500;
+}
+
+.tree-item.selected {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.tree-root {
+  min-height: 100%;
 }
 
 /* Unsaved (Dirty) Editing State Indicator */
