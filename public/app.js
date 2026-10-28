@@ -456,11 +456,16 @@ async function moveTreeItem(sourcePath, targetDirPath) {
     showToast(`🚚 '${getDisplayName(fileName, false)}'을(를) '${targetFolderName}' 폴더로 이동했습니다.`);
 
     // If the currently open file was moved, update state and header paths
-    if (state.currentFilePath && state.currentFilePath.replace(/\\/g, '/') === srcNorm) {
-      state.currentFilePath = data.newPath;
-      if (filePathDisplay) filePathDisplay.textContent = getDisplayPathFromRoot(data.newPath);
-      const cleanNew = getDisplayName(fileName, false);
-      renderHeaderFileTitle(cleanNew, state.isDirty);
+    if (state.currentFilePath && isPathEqualOrInside(state.currentFilePath, sourcePath)) {
+      const normCur = state.currentFilePath.replace(/\\/g, '/');
+      const normSrc = sourcePath.replace(/\\/g, '/').replace(/\/+$/, '');
+      const normNew = data.newPath.replace(/\\/g, '/').replace(/\/+$/, '');
+      const updatedPath = normCur === normSrc ? data.newPath : normNew + normCur.slice(normSrc.length);
+      state.currentFilePath = updatedPath;
+      state.selectedNodePath = updatedPath;
+      if (filePathDisplay) filePathDisplay.textContent = getDisplayPathFromRoot(updatedPath);
+      const curName = updatedPath.split(/[\\/]/).pop();
+      renderHeaderFileTitle(getDisplayName(curName, false), state.isDirty);
     }
 
     await loadTree();
@@ -687,11 +692,11 @@ function createTreeNode(item) {
 }
 
 // Load File into Editor
-async function loadFile(filePath, isNavigatingHistory = false) {
+async function loadFile(filePath, isNavigatingHistory = false, forceReload = false) {
   if (!filePath) return false;
 
-  // Don't reload if already open and clean
-  if (state.currentFilePath === filePath && !state.isDirty) {
+  // Don't reload if already open and clean (unless forceReload is requested)
+  if (!forceReload && state.currentFilePath === filePath && !state.isDirty) {
     return true;
   }
 
@@ -956,6 +961,11 @@ function updateUnsavedIndicators(isUnsaved) {
 
   // 1. Header Title Dot
   renderHeaderFileTitle(cleanName, isUnsaved);
+
+  // Sync header path display with current file path
+  if (filePathDisplay) {
+    filePathDisplay.textContent = getDisplayPathFromRoot(state.currentFilePath);
+  }
 
   // 2. Left Tree Active/Editing Highlight & Dot
   updateTreeActiveState();
@@ -1659,7 +1669,7 @@ function renderHeaderFileTitle(cleanTitle, isUnsaved) {
 // Display path starting from the root folder shown in the top-left (e.g. memos/업무)
 function getDisplayPathFromRoot(targetPath) {
   if (!targetPath || !state.rootFolder) {
-    return currentFolderNameElement ? currentFolderNameElement.textContent.trim() : '루트 폴더';
+    return typeof currentFolderName !== 'undefined' && currentFolderName ? currentFolderName.textContent.trim() : '루트 폴더';
   }
   const normTarget = targetPath.replace(/\\/g, '/').replace(/\/+$/, '');
   const normRoot = state.rootFolder.replace(/\\/g, '/').replace(/\/+$/, '');
@@ -1736,24 +1746,29 @@ function promptRename(oldPath, currName) {
     `새로운 이름을 입력하세요:`,
     cleanCurrent,
     async (newName) => {
-      if (!newName.trim() || newName.trim() === cleanCurrent) return;
+      const trimmedNew = newName.trim();
+      if (!trimmedNew || trimmedNew === cleanCurrent) return;
       try {
+        // If the currently open file is inside or equal to oldPath, save any pending edits first
+        if (state.isDirty && state.currentFilePath && isPathEqualOrInside(state.currentFilePath, oldPath)) {
+          await saveCurrentFile(false);
+        }
+
         const res = await fetch('/api/rename', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ oldPath, newName: newName.trim() })
+          body: JSON.stringify({ oldPath, newName: trimmedNew })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        await loadTree();
 
         const rewritePath = (p) => {
           if (!p) return p;
-          if (p === oldPath) return data.newPath;
-          if (isPathEqualOrInside(p, oldPath)) {
-            const normP = p.replace(/\\/g, '/');
-            const normOld = oldPath.replace(/\\/g, '/').replace(/\/+$/, '');
-            const normNew = data.newPath.replace(/\\/g, '/').replace(/\/+$/, '');
+          const normP = p.replace(/\\/g, '/');
+          const normOld = oldPath.replace(/\\/g, '/').replace(/\/+$/, '');
+          const normNew = data.newPath.replace(/\\/g, '/').replace(/\/+$/, '');
+          if (normP === normOld) return data.newPath;
+          if (normP.startsWith(normOld + '/')) {
             return normNew + normP.slice(normOld.length);
           }
           return p;
@@ -1762,13 +1777,18 @@ function promptRename(oldPath, currName) {
         navHistory.past = navHistory.past.map(rewritePath);
         navHistory.future = navHistory.future.map(rewritePath);
 
-        if (state.currentFilePath) {
+        const isCurrentAffected = state.currentFilePath && isPathEqualOrInside(state.currentFilePath, oldPath);
+
+        await loadTree();
+
+        if (isCurrentAffected) {
           const updatedCurrent = rewritePath(state.currentFilePath);
-          if (updatedCurrent !== state.currentFilePath) {
-            state.currentFilePath = updatedCurrent;
-            await loadFile(updatedCurrent, true);
-          }
+          // Do NOT pre-mutate state.currentFilePath; loadFile with forceReload will fetch,
+          // update state.currentFilePath, renderHeaderFileTitle, and update filePathDisplay!
+          await loadFile(updatedCurrent, true, true);
         }
+
+        showToast(`✏️ '${trimmedNew}'(으)로 이름이 변경되었습니다.`);
       } catch (err) {
         alert(err.message);
       }
