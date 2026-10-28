@@ -334,10 +334,23 @@ async function init() {
     await loadTree();
 
     if (config.lastOpenedFile) {
-      await loadFile(config.lastOpenedFile);
+      const ok = await loadFile(config.lastOpenedFile, false, false, true);
+      if (!ok) {
+        await loadInitialWelcomeMemo();
+      }
+    } else {
+      await loadInitialWelcomeMemo();
     }
   } catch (err) {
     console.error('Failed to init:', err);
+  }
+}
+
+async function loadInitialWelcomeMemo() {
+  const allMemos = getAllFiles(state.treeData).filter(f => isTextMemo(f.name));
+  const welcome = allMemos.find(f => f.name === '환영합니다.txt' || f.name === '환영합니다') || allMemos[0];
+  if (welcome) {
+    await loadFile(welcome.path, false, false, true);
   }
 }
 
@@ -692,7 +705,7 @@ function createTreeNode(item) {
 }
 
 // Load File into Editor
-async function loadFile(filePath, isNavigatingHistory = false, forceReload = false) {
+async function loadFile(filePath, isNavigatingHistory = false, forceReload = false, isSilent = false) {
   if (!filePath) return false;
 
   // Don't reload if already open and clean (unless forceReload is requested)
@@ -735,8 +748,10 @@ async function loadFile(filePath, isNavigatingHistory = false, forceReload = fal
         await new Promise(r => setTimeout(r, 400));
         continue;
       }
-      console.error('Error fetching file:', err);
-      alert('파일을 불러오지 못했습니다: ' + err.message);
+      console.warn('Error fetching file:', err);
+      if (!isSilent) {
+        alert('파일을 불러오지 못했습니다: ' + err.message);
+      }
       return false;
     }
   }

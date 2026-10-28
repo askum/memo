@@ -45,14 +45,48 @@ setInterval(() => {
   }
 }, WATCHDOG_CHECK_INTERVAL_MS);
 
-// Helper to resolve file path handling Unicode NFC/NFD on macOS
+// Helper to resolve file path handling Unicode NFC/NFD, URL encoding, and relative fallbacks
 function resolveFilePath(rawPath) {
   if (!rawPath) return null;
-  if (fs.existsSync(rawPath)) return rawPath;
-  const nfc = rawPath.normalize('NFC');
-  if (fs.existsSync(nfc)) return nfc;
-  const nfd = rawPath.normalize('NFD');
-  if (fs.existsSync(nfd)) return nfd;
+  let decoded = rawPath;
+  try { decoded = decodeURIComponent(rawPath); } catch (e) {}
+
+  const candidates = [
+    rawPath,
+    decoded,
+    path.resolve(rawPath),
+    path.resolve(decoded)
+  ];
+
+  try {
+    const root = getConfig().rootFolder;
+    if (root && fs.existsSync(root)) {
+      candidates.push(path.join(root, rawPath));
+      candidates.push(path.join(root, decoded));
+      candidates.push(path.join(root, path.basename(rawPath)));
+      candidates.push(path.join(root, path.basename(decoded)));
+    }
+  } catch (e) {}
+
+  for (const c of candidates) {
+    if (!c) continue;
+    if (fs.existsSync(c)) return c;
+    const nfc = c.normalize('NFC');
+    if (fs.existsSync(nfc)) return nfc;
+    const nfd = c.normalize('NFD');
+    if (fs.existsSync(nfd)) return nfd;
+  }
+
+  // Deep recursive search in rootFolder as last fallback
+  try {
+    const root = getConfig().rootFolder;
+    if (root && fs.existsSync(root)) {
+      const baseName = path.basename(decoded || rawPath);
+      const found = findFileInDir(root, baseName);
+      if (found) return found;
+    }
+  } catch (e) {}
+
   return null;
 }
 
@@ -151,6 +185,19 @@ function getConfig() {
     try {
       const cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'));
       if (cfg.rootFolder && fs.existsSync(cfg.rootFolder)) {
+        if (cfg.lastOpenedFile) {
+          if (!fs.existsSync(cfg.lastOpenedFile)) {
+            // Check if file exists inside rootFolder (e.g. folder was moved or path changed)
+            const fallback = path.join(cfg.rootFolder, path.basename(cfg.lastOpenedFile));
+            if (fs.existsSync(fallback)) {
+              cfg.lastOpenedFile = fallback;
+              saveConfig(cfg);
+            } else {
+              cfg.lastOpenedFile = '';
+              saveConfig(cfg);
+            }
+          }
+        }
         return cfg;
       }
     } catch (e) {}
