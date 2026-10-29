@@ -30,29 +30,20 @@ try {
   }
 } catch (e) {}
 
-// Lifecycle & Auto-Shutdown Watchdog
+// Lifecycle & Auto-Shutdown Management
 const serverStartTime = Date.now();
-let lastHeartbeatTime = Date.now();
 let hasClientConnected = false;
 let shutdownTimeout = null;
 
-// Watchdog: If no client heartbeat received within 4.5 seconds after connection, terminate!
-const WATCHDOG_CHECK_INTERVAL_MS = 1000;
-const HEARTBEAT_TIMEOUT_MS = 4500;
-
-setInterval(() => {
+// Initial connection watchdog: if no browser/client connects within 60 seconds of server launch, exit
+const initialConnectionTimer = setInterval(() => {
   if (hasClientConnected) {
-    const elapsed = Date.now() - lastHeartbeatTime;
-    if (elapsed > HEARTBEAT_TIMEOUT_MS) {
-      console.log(`[INFO] 브라우저 창 닫힘 감지 (${Math.round(elapsed / 1000)}초간 하트비트 없음). 서버를 안전하게 종료합니다.`);
-      process.exit(0);
-    }
-  } else if (Date.now() - serverStartTime > 30000) {
-    // If no browser connected within 30 seconds of server launch, exit
-    console.log('[INFO] 브라우저 연결 없음 (30초 경과). 서버를 자동 종료합니다.');
+    clearInterval(initialConnectionTimer);
+  } else if (Date.now() - serverStartTime > 60000) {
+    console.log('[INFO] 브라우저 연결 없음 (60초 경과). 서버를 자동 종료합니다.');
     process.exit(0);
   }
-}, WATCHDOG_CHECK_INTERVAL_MS);
+}, 5000);
 
 // Helper to resolve file path handling Unicode NFC/NFD, URL encoding, and relative fallbacks
 function resolveFilePath(rawPath) {
@@ -394,14 +385,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   try {
-    // API: Heartbeat
-    if (pathname === '/api/heartbeat') {
-      lastHeartbeatTime = Date.now();
+    if (pathname !== '/api/shutdown') {
       hasClientConnected = true;
       if (shutdownTimeout) {
         clearTimeout(shutdownTimeout);
         shutdownTimeout = null;
       }
+    }
+
+    // API: Heartbeat
+    if (pathname === '/api/heartbeat') {
       return sendJSON(res, 200, { ok: true });
     }
 
@@ -412,7 +405,7 @@ const server = http.createServer(async (req, res) => {
       shutdownTimeout = setTimeout(() => {
         console.log('[INFO] 프로그램을 종료합니다.');
         process.exit(0);
-      }, 1000);
+      }, 2000);
       return sendJSON(res, 200, { ok: true });
     }
 

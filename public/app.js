@@ -734,7 +734,7 @@ async function loadFile(filePath, isNavigatingHistory = false, forceReload = fal
 
   // 1. Fetch file content from server (with retry in case of sleep/wake reconnect)
   let fileData = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const res = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
       if (!res.ok) {
@@ -744,8 +744,8 @@ async function loadFile(filePath, isNavigatingHistory = false, forceReload = fal
       fileData = await res.json();
       break;
     } catch (err) {
-      if (attempt === 0) {
-        await new Promise(r => setTimeout(r, 400));
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 400 * (attempt + 1)));
         continue;
       }
       console.warn('Error fetching file:', err);
@@ -2814,7 +2814,7 @@ function startHeartbeat() {
     fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
   }
   ping();
-  setInterval(ping, 1500);
+  setInterval(ping, 3000);
 
   // Ping immediately when user returns to window, switches tab, or wakes from sleep
   window.addEventListener('focus', ping);
