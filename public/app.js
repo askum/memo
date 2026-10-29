@@ -2579,11 +2579,92 @@ function setupSplitter() {
   });
 }
 
+// Move current line(s) Up or Down
+function moveCurrentLines(direction) {
+  if (document.activeElement !== memoTextarea && !memoTextarea.matches(':focus')) {
+    return false;
+  }
+  if (!state.currentFilePath || memoTextarea.disabled || memoTextarea.readOnly) {
+    return false;
+  }
+  const text = memoTextarea.value;
+  if (!text) return false;
+
+  const start = memoTextarea.selectionStart;
+  const end = memoTextarea.selectionEnd;
+
+  const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+  const effectiveEnd = (end > start && text[end - 1] === '\n') ? end - 1 : end;
+  let lineEnd = text.indexOf('\n', effectiveEnd);
+  if (lineEnd === -1) lineEnd = text.length;
+
+  const startOffset = start - lineStart;
+  const endOffset = end - lineStart;
+  const selectedBlock = text.substring(lineStart, lineEnd);
+
+  if (direction === -1) {
+    // Move UP
+    if (lineStart === 0) return true; // Top boundary
+    const prevLineStart = text.lastIndexOf('\n', lineStart - 2) + 1;
+    const prevLineEnd = lineStart - 1;
+    const prevLine = text.substring(prevLineStart, prevLineEnd);
+
+    const swapped = selectedBlock + '\n' + prevLine;
+    memoTextarea.focus();
+    memoTextarea.setSelectionRange(prevLineStart, lineEnd);
+    if (!document.execCommand('insertText', false, swapped)) {
+      memoTextarea.value = text.substring(0, prevLineStart) + swapped + text.substring(lineEnd);
+    }
+    const newStart = prevLineStart + startOffset;
+    const newEnd = prevLineStart + endOffset;
+    memoTextarea.setSelectionRange(newStart, newEnd);
+    memoTextarea.dispatchEvent(new Event('input'));
+    return true;
+  } else if (direction === 1) {
+    // Move DOWN
+    if (lineEnd === text.length) return true; // Bottom boundary
+    const nextLineStart = lineEnd + 1;
+    let nextLineEnd = text.indexOf('\n', nextLineStart);
+    if (nextLineEnd === -1) nextLineEnd = text.length;
+    const nextLine = text.substring(nextLineStart, nextLineEnd);
+
+    const swapped = nextLine + '\n' + selectedBlock;
+    memoTextarea.focus();
+    memoTextarea.setSelectionRange(lineStart, nextLineEnd);
+    if (!document.execCommand('insertText', false, swapped)) {
+      memoTextarea.value = text.substring(0, lineStart) + swapped + text.substring(nextLineEnd);
+    }
+    const newBlockStart = lineStart + nextLine.length + 1;
+    const newStart = newBlockStart + startOffset;
+    const newEnd = newBlockStart + endOffset;
+    memoTextarea.setSelectionRange(newStart, newEnd);
+    memoTextarea.dispatchEvent(new Event('input'));
+    return true;
+  }
+
+  return false;
+}
+
 // Keyboard Shortcuts
 function setupKeyboardShortcuts() {
   window.addEventListener('keydown', (e) => {
     const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
     const mod = isMac ? e.metaKey : e.ctrlKey;
+
+    // Move current line(s) Up: Ctrl+Alt+ArrowUp (Win) or Option+ArrowUp (Mac) / Alt+ArrowUp
+    if (!e.shiftKey && e.altKey && (e.key === 'ArrowUp' || e.key === 'Up')) {
+      if (moveCurrentLines(-1)) {
+        e.preventDefault();
+        return;
+      }
+    }
+    // Move current line(s) Down: Ctrl+Alt+ArrowDown (Win) or Option+ArrowDown (Mac) / Alt+ArrowDown
+    if (!e.shiftKey && e.altKey && (e.key === 'ArrowDown' || e.key === 'Down')) {
+      if (moveCurrentLines(1)) {
+        e.preventDefault();
+        return;
+      }
+    }
 
     // F1: Open Help Guide
     if (e.key === 'F1') {
