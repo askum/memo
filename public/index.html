@@ -10,7 +10,7 @@
   <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png?v=2">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=2">
   <link rel="apple-touch-icon" href="favicon-256.png?v=2">
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
   <div class="app-container">
@@ -25,7 +25,7 @@
             <line x1="16" y1="17" x2="8" y2="17"/>
           </svg>
           <span class="brand-title">Desktop Memo</span>
-          <span class="version-badge" id="appVersionBadge">v1.0.18</span>
+          <span class="version-badge" id="appVersionBadge">v1.0.19</span>
         </div>
         <div class="header-tools">
           <button class="btn btn-icon btn-sm header-tool-btn" id="btnThemeToggle" title="테마 변경 (라이트 / 다크)">
@@ -157,6 +157,146 @@
 
         <div class="editor-actions">
           <div class="status-badge" id="saveStatusBadge"></div>
+
+          <!-- Edit Dropdown Menu -->
+          <div class="menu-dropdown-wrapper" id="editMenuWrapper">
+            <button class="btn btn-secondary btn-sm menu-dropdown-btn" id="btnEditMenu" title="편집 메뉴 열기">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+              <span>편집</span>
+              <svg class="dropdown-arrow-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <div class="menu-dropdown-panel hidden" id="editMenuPanel">
+              <button class="menu-item" data-action="undo">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+                  <span>실행 취소</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+Z</span>
+              </button>
+              <button class="menu-item" data-action="redo">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg>
+                  <span>다시 실행</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+Y</span>
+              </button>
+              <div class="menu-divider"></div>
+              <button class="menu-item" data-action="move-up">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
+                  <span>현재 줄 위로 이동</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+Alt+↑</span>
+              </button>
+              <button class="menu-item" data-action="move-down">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  <span>현재 줄 아래로 이동</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+Alt+↓</span>
+              </button>
+              <button class="menu-item" data-action="delete-line">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                  <span>한 줄 삭제</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+D</span>
+              </button>
+              <div class="menu-divider"></div>
+              <button class="menu-item" data-action="find">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <span>찾기</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+F</span>
+              </button>
+              <button class="menu-item" data-action="replace">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  <span>찾아 바꾸기</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+H</span>
+              </button>
+              <button class="menu-item" data-action="select-all">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+                  <span>전체 선택</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+A</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Tools Dropdown Menu -->
+          <div class="menu-dropdown-wrapper" id="toolsMenuWrapper">
+            <button class="btn btn-secondary btn-sm menu-dropdown-btn" id="btnToolsMenu" title="도구 메뉴 열기">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+              </svg>
+              <span>도구</span>
+              <svg class="dropdown-arrow-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <div class="menu-dropdown-panel hidden" id="toolsMenuPanel">
+              <button class="menu-item" data-action="insert-link">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                  <span>링크 삽입</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+K</span>
+              </button>
+              <button class="menu-item" data-action="toggle-line-numbers">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>
+                  <span>줄 번호 토글</span>
+                </span>
+                <span class="menu-item-shortcut">Alt+L</span>
+              </button>
+              <button class="menu-item" data-action="toggle-word-wrap">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20 10c0-4.4-3.6-8-8-8s-8 3.6-8 8 3.6 8 8 8h1"/></svg>
+                  <span>자동 줄바꿈 토글</span>
+                </span>
+                <span class="menu-item-shortcut">Alt+Z</span>
+              </button>
+              <div class="menu-divider"></div>
+              <button class="menu-item" data-action="toggle-file-filter">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                  <span>파일 보기 필터 전환</span>
+                </span>
+                <span class="menu-item-shortcut">모든 파일 / txt</span>
+              </button>
+              <button class="menu-item" data-action="change-folder">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                  <span>작업 폴더 변경</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+O</span>
+              </button>
+              <div class="menu-divider"></div>
+              <button class="menu-item" data-action="toggle-theme">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                  <span>다크 / 라이트 모드</span>
+                </span>
+              </button>
+              <button class="menu-item" data-action="show-help">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <span>도움말 및 단축키</span>
+                </span>
+                <span class="menu-item-shortcut">F1</span>
+              </button>
+            </div>
+          </div>
+
           <button class="btn btn-secondary btn-sm" id="btnToggleFindReplace" title="찾기 및 바꾸기 (단축키: Cmd+F / Ctrl+F)">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"/>
@@ -516,6 +656,15 @@
                 <td><strong>현재 줄 아래로 이동</strong></td>
                 <td><kbd>Option</kbd> + <kbd>↓</kbd></td>
                 <td><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>↓</kbd> 또는 <kbd>Alt</kbd> + <kbd>↓</kbd></td>
+              </tr>
+              <tr>
+                <td><strong>한 줄 삭제 (현재 줄 / 선택 블록)</strong></td>
+                <td><kbd>Cmd</kbd> + <kbd>D</kbd> 또는 <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd></td>
+                <td><kbd>Ctrl</kbd> + <kbd>D</kbd> 또는 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd></td>
+              </tr>
+              <tr>
+                <td><strong>상단 편집 & 도구 메뉴</strong></td>
+                <td colspan="2">상단 <strong>[편집 ▾]</strong>, <strong>[도구 ▾]</strong> 버튼 클릭으로 전체 기능 마우스 사용 가능</td>
               </tr>
               <tr>
                 <td><strong>줄 번호 켜기 / 끄기</strong></td>

@@ -318,6 +318,7 @@ async function init() {
   updateLineNumbersVisibility();
   setupSplitter();
   setupKeyboardShortcuts();
+  setupDropdownMenus();
   setupEventListeners();
   startHeartbeat();
 
@@ -2645,6 +2646,50 @@ function moveCurrentLines(direction) {
   return false;
 }
 
+// Delete current line(s)
+function deleteCurrentLines() {
+  if (document.activeElement !== memoTextarea && !memoTextarea.matches(':focus')) {
+    if (!state.currentFilePath || memoTextarea.disabled || memoTextarea.readOnly) return false;
+    memoTextarea.focus();
+  }
+  if (!state.currentFilePath || memoTextarea.disabled || memoTextarea.readOnly) return false;
+
+  const text = memoTextarea.value;
+  if (!text && text !== '') return false;
+  if (text.length === 0) return false;
+
+  const start = memoTextarea.selectionStart;
+  const end = memoTextarea.selectionEnd;
+
+  const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+  const effectiveEnd = (end > start && text[end - 1] === '\n') ? end - 1 : end;
+  let lineEnd = text.indexOf('\n', effectiveEnd);
+
+  let deleteFrom, deleteTo;
+  if (lineEnd !== -1) {
+    deleteFrom = lineStart;
+    deleteTo = lineEnd + 1;
+  } else {
+    if (lineStart > 0) {
+      deleteFrom = lineStart - 1;
+      deleteTo = text.length;
+    } else {
+      deleteFrom = 0;
+      deleteTo = text.length;
+    }
+  }
+
+  memoTextarea.focus();
+  memoTextarea.setSelectionRange(deleteFrom, deleteTo);
+  if (!document.execCommand('delete', false, null) && !document.execCommand('insertText', false, '')) {
+    memoTextarea.value = text.substring(0, deleteFrom) + text.substring(deleteTo);
+  }
+  const newCursor = Math.min(lineStart, memoTextarea.value.length);
+  memoTextarea.setSelectionRange(newCursor, newCursor);
+  memoTextarea.dispatchEvent(new Event('input'));
+  return true;
+}
+
 // Keyboard Shortcuts
 function setupKeyboardShortcuts() {
   window.addEventListener('keydown', (e) => {
@@ -2729,8 +2774,17 @@ function setupKeyboardShortcuts() {
       toggleWordWrap();
       return;
     }
-    // Cmd/Ctrl + K: Insert Memo Link
-    if (mod && (e.key === 'k' || e.key === 'K')) {
+    // Cmd/Ctrl + D or Cmd/Ctrl + Shift + K: Delete Current Line(s)
+    if ((mod && !e.shiftKey && (e.key === 'd' || e.key === 'D' || e.code === 'KeyD')) ||
+        (mod && e.shiftKey && (e.key === 'k' || e.key === 'K' || e.code === 'KeyK'))) {
+      if (deleteCurrentLines()) {
+        e.preventDefault();
+        return;
+      }
+    }
+
+    // Cmd/Ctrl + K (without Shift): Insert Memo Link
+    if (mod && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
       e.preventDefault();
       if (!btnInsertLink.disabled) openLinkSelectorModal();
       return;
@@ -2806,6 +2860,141 @@ function setupKeyboardShortcuts() {
       }
     }
   });
+}
+
+// Header Dropdown Menus (Edit & Tools)
+function setupDropdownMenus() {
+  const editWrapper = document.getElementById('editMenuWrapper');
+  const btnEditMenu = document.getElementById('btnEditMenu');
+  const editPanel = document.getElementById('editMenuPanel');
+
+  const toolsWrapper = document.getElementById('toolsMenuWrapper');
+  const btnToolsMenu = document.getElementById('btnToolsMenu');
+  const toolsPanel = document.getElementById('toolsMenuPanel');
+
+  function closeAllMenus() {
+    if (editPanel) editPanel.classList.add('hidden');
+    if (editWrapper) editWrapper.classList.remove('open');
+    if (toolsPanel) toolsPanel.classList.add('hidden');
+    if (toolsWrapper) toolsWrapper.classList.remove('open');
+  }
+
+  function toggleMenu(wrapper, panel, otherWrapper, otherPanel) {
+    const isHidden = panel.classList.contains('hidden');
+    if (otherPanel) otherPanel.classList.add('hidden');
+    if (otherWrapper) otherWrapper.classList.remove('open');
+    if (isHidden) {
+      panel.classList.remove('hidden');
+      wrapper.classList.add('open');
+    } else {
+      panel.classList.add('hidden');
+      wrapper.classList.remove('open');
+    }
+  }
+
+  if (btnEditMenu && editPanel && editWrapper) {
+    btnEditMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMenu(editWrapper, editPanel, toolsWrapper, toolsPanel);
+    });
+  }
+
+  if (btnToolsMenu && toolsPanel && toolsWrapper) {
+    btnToolsMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMenu(toolsWrapper, toolsPanel, editWrapper, editPanel);
+    });
+  }
+
+  window.addEventListener('click', (e) => {
+    if (!e.target.closest('.menu-dropdown-wrapper')) {
+      closeAllMenus();
+    }
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeAllMenus();
+    }
+  });
+
+  document.querySelectorAll('.menu-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeAllMenus();
+      const action = item.getAttribute('data-action');
+      handleMenuAction(action);
+    });
+  });
+
+  updateMenuShortcutsDisplay();
+}
+
+function updateMenuShortcutsDisplay() {
+  const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const mod = isMac ? 'Cmd' : 'Ctrl';
+  const alt = isMac ? 'Option' : 'Alt';
+  document.querySelectorAll('.menu-item-shortcut').forEach(el => {
+    let text = el.textContent;
+    text = text.replace(/Ctrl/g, mod).replace(/Alt/g, alt);
+    el.textContent = text;
+  });
+}
+
+function handleMenuAction(action) {
+  switch (action) {
+    case 'undo':
+      memoTextarea.focus();
+      document.execCommand('undo');
+      break;
+    case 'redo':
+      memoTextarea.focus();
+      document.execCommand('redo');
+      break;
+    case 'move-up':
+      moveCurrentLines(-1);
+      break;
+    case 'move-down':
+      moveCurrentLines(1);
+      break;
+    case 'delete-line':
+      deleteCurrentLines();
+      break;
+    case 'find':
+      openFindPanel(false);
+      break;
+    case 'replace':
+      openFindPanel(true);
+      break;
+    case 'select-all':
+      memoTextarea.focus();
+      memoTextarea.select();
+      break;
+    case 'insert-link':
+      if (!btnInsertLink.disabled) openLinkSelectorModal();
+      break;
+    case 'toggle-line-numbers':
+      toggleLineNumbers();
+      break;
+    case 'toggle-word-wrap':
+      toggleWordWrap();
+      break;
+    case 'toggle-file-filter':
+      state.showAllFiles = !state.showAllFiles;
+      localStorage.setItem('memo_show_all_files', state.showAllFiles ? 'true' : 'false');
+      updateFileFilterBtn();
+      loadTree();
+      break;
+    case 'change-folder':
+      handleChangeFolder();
+      break;
+    case 'toggle-theme':
+      toggleTheme();
+      break;
+    case 'show-help':
+      openHelpModal();
+      break;
+  }
 }
 
 // Heartbeat & Auto-shutdown client

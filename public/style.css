@@ -1715,3 +1715,121 @@ kbd {
 .hidden {
   display: none !important;
 }
+
+/* ==========================================================================
+   Header Dropdown Menus (Edit & Tools)
+   ========================================================================== */
+.menu-dropdown-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.menu-dropdown-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dropdown-arrow-icon {
+  margin-left: 2px;
+  opacity: 0.6;
+  transition: transform var(--transition-fast);
+}
+
+.menu-dropdown-wrapper.open .dropdown-arrow-icon {
+  transform: rotate(180deg);
+}
+
+.menu-dropdown-wrapper.open .menu-dropdown-btn {
+  background: var(--bg-hover);
+  border-color: var(--border-default);
+}
+
+.menu-dropdown-panel {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  min-width: 220px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 28px -4px rgba(0, 0, 0, 0.3), 0 4px 10px -2px rgba(0, 0, 0, 0.15);
+  padding: 5px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  animation: menuFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes menuFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  user-select: none;
+}
+
+.menu-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.menu-item:active {
+  background: var(--bg-active);
+}
+
+.menu-item-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-item-left svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.menu-item:hover .menu-item-left svg {
+  color: var(--text-primary);
+}
+
+.menu-item-shortcut {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  margin-left: 12px;
+  padding: 1px 5px;
+  background: var(--bg-editor);
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.menu-divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 4px 6px;
+}
