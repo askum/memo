@@ -21,6 +21,15 @@ try {
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 if (!fs.existsSync(DEFAULT_MEMOS_DIR)) fs.mkdirSync(DEFAULT_MEMOS_DIR, { recursive: true });
 
+// Ensure initial welcome memo only if default memos folder is completely empty
+try {
+  const existingFiles = fs.readdirSync(DEFAULT_MEMOS_DIR).filter(f => !f.startsWith('.'));
+  if (existingFiles.length === 0) {
+    const welcomeFile = path.join(DEFAULT_MEMOS_DIR, '환영합니다.txt');
+    fs.writeFileSync(welcomeFile, `📝 데스크톱 메모장에 오신 것을 환영합니다!\n\n이곳에 자유롭게 메모를 작성하세요.\n\n---\n\n📌 팁:\n- 상단의 [새 메모] 버튼이나 Cmd+N(Ctrl+N)으로 새 메모를 만들 수 있습니다.\n- [작업 폴더 변경] 버튼으로 컴퓨터의 원하는 폴더를 선택하여 메모할 수 있습니다.\n`, 'utf-8');
+  }
+} catch (e) {}
+
 // Lifecycle & Auto-Shutdown Watchdog
 const serverStartTime = Date.now();
 let lastHeartbeatTime = Date.now();
@@ -88,95 +97,6 @@ function resolveFilePath(rawPath) {
   } catch (e) {}
 
   return null;
-}
-
-// Auto-repair garbled folder/file names resulting from Windows CP949/Latin-1 zip extraction
-function repairGarbledEntries(folder) {
-  if (!fs.existsSync(folder)) return;
-  try {
-    const entries = fs.readdirSync(folder);
-    for (const entry of entries) {
-      if (entry.startsWith('.')) continue;
-      const full = path.join(folder, entry);
-      const isDir = fs.statSync(full).isDirectory();
-
-      let targetName = null;
-      if (isDir) {
-        if (entry.includes('媛쒖씤') || entry.includes('媛') || (entry.includes('씤') && !entry.includes('개인'))) {
-          targetName = '개인';
-        } else if (entry.includes('뾽') || entry.includes('몮臾') || (entry.includes('臾') && !entry.includes('업무'))) {
-          targetName = '업무';
-        }
-      } else {
-        if (entry.includes('뀒') || entry.includes('í') || (entry.includes('듃') && !entry.includes('테스트'))) {
-          targetName = '테스트.txt';
-        } else if (entry.includes('í') || entry.includes('ë') || (entry.includes('í') && !entry.includes('환영합니다'))) {
-          targetName = '환영합니다.txt';
-        }
-      }
-
-      if (targetName && targetName !== entry) {
-        const dest = path.join(folder, targetName);
-        if (!fs.existsSync(dest)) {
-          fs.renameSync(full, dest);
-          console.log(`[Auto-Repair] Renamed garbled: '${entry}' -> '${targetName}'`);
-        }
-      }
-
-      // Check subdirectories
-      if (isDir) {
-        const subPath = targetName ? path.join(folder, targetName) : full;
-        repairGarbledEntries(subPath);
-      }
-    }
-  } catch (err) {
-    console.error('Auto-repair warning:', err.message);
-  }
-}
-
-// Ensure initial seed files
-function ensureSeedFiles(folder) {
-  if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
-
-  // 1. Repair any garbled names from zip extraction
-  repairGarbledEntries(folder);
-
-  // 2. Ensure standard folders and files exist
-  const personalDir = path.join(folder, '개인');
-  const workDir = path.join(folder, '업무');
-  const personalTest = path.join(personalDir, '테스트.txt');
-  const workTest = path.join(workDir, '테스트.txt');
-  const welcomeFile = path.join(folder, '환영합니다.txt');
-
-  if (!fs.existsSync(personalDir)) fs.mkdirSync(personalDir, { recursive: true });
-  if (!fs.existsSync(workDir)) fs.mkdirSync(workDir, { recursive: true });
-
-  if (!fs.existsSync(personalTest)) {
-    const src = path.join(DEFAULT_MEMOS_DIR, '개인', '테스트.txt');
-    if (fs.existsSync(src)) {
-      fs.copyFileSync(src, personalTest);
-    } else {
-      fs.writeFileSync(personalTest, `📝 개인 메모 테스트\n\n이 메모는 [개인] 폴더의 예시 메모입니다.\n개인적인 생각, 일기, 학습 노트 등을 자유롭게 기록해 보세요.\n\n---\n\n📌 다른 메모로 이동하기 (더블 클릭):\n- 시작 안내문: [[환영합니다]]\n- 업무 메모: [[업무/테스트]]\n`, 'utf-8');
-    }
-  }
-
-  if (!fs.existsSync(workTest)) {
-    const src = path.join(DEFAULT_MEMOS_DIR, '업무', '테스트.txt');
-    if (fs.existsSync(src)) {
-      fs.copyFileSync(src, workTest);
-    } else {
-      fs.writeFileSync(workTest, `📝 업무 메모 테스트\n\n이 메모는 [업무] 폴더의 예시 메모입니다.\n업무 일지, 회의록, 프로젝트 계획 등을 체계적으로 관리해 보세요.\n\n---\n\n📌 다른 메모로 이동하기 (더블 클릭):\n- 시작 안내문: [[환영합니다]]\n- 개인 메모: [[개인/테스트]]\n`, 'utf-8');
-    }
-  }
-
-  if (!fs.existsSync(welcomeFile)) {
-    const src = path.join(DEFAULT_MEMOS_DIR, '환영합니다.txt');
-    if (fs.existsSync(src)) {
-      fs.copyFileSync(src, welcomeFile);
-    } else {
-      fs.writeFileSync(welcomeFile, `📝 데스크톱 메모장에 오신 것을 환영합니다!\n\n- 개인 메모: [[개인/테스트]]\n- 업무 메모: [[업무/테스트]]\n`, 'utf-8');
-    }
-  }
 }
 
 // Config manager
@@ -499,7 +419,6 @@ const server = http.createServer(async (req, res) => {
     // API: Get Config
     if (pathname === '/api/config' && req.method === 'GET') {
       const cfg = getConfig();
-      ensureSeedFiles(cfg.rootFolder);
       return sendJSON(res, 200, { ...cfg, version: APP_VERSION });
     }
 
@@ -512,7 +431,6 @@ const server = http.createServer(async (req, res) => {
           fs.mkdirSync(body.rootFolder, { recursive: true });
         }
         cfg.rootFolder = path.resolve(body.rootFolder);
-        ensureSeedFiles(cfg.rootFolder);
       }
       if (body.lastOpenedFile !== undefined) {
         cfg.lastOpenedFile = body.lastOpenedFile;
@@ -528,7 +446,6 @@ const server = http.createServer(async (req, res) => {
       if (result && result.success && result.rootFolder) {
         const cfg = getConfig();
         cfg.rootFolder = result.rootFolder;
-        ensureSeedFiles(result.rootFolder);
         saveConfig(cfg);
         return sendJSON(res, 200, { success: true, rootFolder: result.rootFolder });
       }
@@ -599,7 +516,6 @@ const server = http.createServer(async (req, res) => {
     // API: Get Tree
     if (pathname === '/api/tree' && req.method === 'GET') {
       const reqPath = parsedUrl.searchParams.get('path') || getConfig().rootFolder;
-      ensureSeedFiles(reqPath);
       const tree = scanDirectory(reqPath);
       return sendJSON(res, 200, { rootFolder: reqPath, tree });
     }

@@ -1,6 +1,6 @@
 {
   "name": "desktop-memo",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "초경량 로컬 폴더 기반 데스크톱 메모 프로그램",
   "main": "server.js",
   "scripts": {
