@@ -120,6 +120,61 @@ function saveConfig(cfg) {
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf-8');
 }
 
+// Copy a directory recursively
+function copyDirRecursiveSync(src, dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursiveSync(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+// Robust rename with retry & fallback for Windows EPERM / EBUSY
+async function safeRename(oldPath, newPath) {
+  const isWindows = process.platform === 'win32';
+  const retries = isWindows ? 8 : 3;
+  const initialDelay = 80;
+
+  for (let i = 0; i < retries; i++) {
+    try {
+      fs.renameSync(oldPath, newPath);
+      return;
+    } catch (err) {
+      const isLockError = err.code === 'EPERM' || err.code === 'EBUSY' || err.code === 'EACCES';
+      if (isLockError && i < retries - 1) {
+        // Exponential backoff
+        await new Promise(r => setTimeout(r, initialDelay * Math.pow(1.3, i)));
+        continue;
+      }
+
+      // If it still fails with lock error, attempt copy & delete fallback
+      if (isLockError && fs.existsSync(oldPath)) {
+        try {
+          const stat = fs.statSync(oldPath);
+          if (stat.isDirectory()) {
+            copyDirRecursiveSync(oldPath, newPath);
+            fs.rmSync(oldPath, { recursive: true, force: true });
+            return;
+          } else {
+            fs.copyFileSync(oldPath, newPath);
+            fs.unlinkSync(oldPath);
+            return;
+          }
+        } catch (copyErr) {
+          throw new Error(`파일 또는 폴더가 다른 프로그램이나 시스템 프로세스에서 사용 중이어서 이름을 변경할 수 없습니다. (원인: ${err.message})`);
+        }
+      }
+      throw err;
+    }
+  }
+}
+
 // Directory tree scanner
 function scanDirectory(dirPath) {
   if (!fs.existsSync(dirPath)) return [];
@@ -616,7 +671,23 @@ const server = http.createServer(async (req, res) => {
       if (fs.existsSync(newPath)) {
         return sendJSON(res, 400, { error: `'${name}' 항목이 이미 존재합니다.` });
       }
-      fs.renameSync(oldPath, newPath);
+
+      await safeRename(oldPath, newPath);
+
+      // If lastOpenedFile is inside or equal to oldPath, update config
+      const cfg = getConfig();
+      if (cfg.lastOpenedFile) {
+        const lastNorm = path.resolve(cfg.lastOpenedFile);
+        const oldNorm = path.resolve(oldPath);
+        if (lastNorm === oldNorm) {
+          cfg.lastOpenedFile = newPath;
+          saveConfig(cfg);
+        } else if (lastNorm.startsWith(oldNorm + path.sep)) {
+          cfg.lastOpenedFile = path.join(newPath, lastNorm.slice(oldNorm.length + 1));
+          saveConfig(cfg);
+        }
+      }
+
       return sendJSON(res, 200, { success: true, newPath });
     }
 
@@ -657,7 +728,22 @@ const server = http.createServer(async (req, res) => {
         return sendJSON(res, 400, { error: `'${itemName}' 항목이 대상 위치에 이미 존재합니다.` });
       }
 
-      fs.renameSync(sourcePath, newPath);
+      await safeRename(sourcePath, newPath);
+
+      // If lastOpenedFile is inside or equal to sourcePath, update config
+      const cfg = getConfig();
+      if (cfg.lastOpenedFile) {
+        const lastNorm = path.resolve(cfg.lastOpenedFile);
+        const srcNorm = path.resolve(sourcePath);
+        if (lastNorm === srcNorm) {
+          cfg.lastOpenedFile = newPath;
+          saveConfig(cfg);
+        } else if (lastNorm.startsWith(srcNorm + path.sep)) {
+          cfg.lastOpenedFile = path.join(newPath, lastNorm.slice(srcNorm.length + 1));
+          saveConfig(cfg);
+        }
+      }
+
       return sendJSON(res, 200, { success: true, oldPath: sourcePath, newPath: newPath });
     }
 
