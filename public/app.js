@@ -1548,34 +1548,24 @@ function doRenderTextHighlights() {
       });
     });
   } else {
-    // B. Word Selection Occurrences (VS Code style cyan/blue)
+  // Selection occurrences (VS Code style cyan/blue)
     const selStart = memoTextarea.selectionStart;
     const selEnd = memoTextarea.selectionEnd;
     if (typeof selStart === 'number' && typeof selEnd === 'number' && selEnd > selStart) {
-      const selectedWord = text.substring(selStart, selEnd);
-      // Only highlight if selection is a trimmed single word under 60 chars without newlines
-      const trimmed = selectedWord.trim();
-      if (trimmed.length >= 2 && trimmed.length <= 60 && !selectedWord.includes('\n')) {
-        const wholeWord = isWordChar(trimmed[0]) && isWordChar(trimmed[trimmed.length - 1]);
+      const selectedText = text.substring(selStart, selEnd);
+      const trimmed = selectedText.trim();
+      // Allow single character (Korean, CJK, special symbol) or 2+ characters without newline up to 80 chars
+      if (trimmed.length >= 1 && trimmed.length <= 80 && !selectedText.includes('\n')) {
         const q = trimmed.toLowerCase();
         const src = text.toLowerCase();
         let idx = src.indexOf(q);
         while (idx !== -1) {
           const end = idx + trimmed.length;
-          let valid = true;
-          if (wholeWord) {
-            const prevChar = idx > 0 ? text[idx - 1] : '';
-            const nextChar = end < text.length ? text[end] : '';
-            if (prevChar && isWordChar(prevChar)) valid = false;
-            if (nextChar && isWordChar(nextChar)) valid = false;
-          }
-          if (valid) {
-            ranges.push({
-              start: idx,
-              end: end,
-              className: 'hl-occurrence'
-            });
-          }
+          ranges.push({
+            start: idx,
+            end: end,
+            className: 'hl-occurrence'
+          });
           idx = src.indexOf(q, idx + 1);
         }
       }
@@ -2557,6 +2547,12 @@ function setupEventListeners() {
 
   memoTextarea.addEventListener('dblclick', () => {
     handleTextareaLinkClick();
+    renderTextHighlights();
+  });
+
+  memoTextarea.addEventListener('mouseup', () => {
+    updateCursorPos();
+    highlightActiveLine();
     renderTextHighlights();
   });
 
