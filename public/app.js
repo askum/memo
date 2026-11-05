@@ -56,6 +56,8 @@ const btnManualSave = document.getElementById('btnManualSave');
 const btnInsertLink = document.getElementById('btnInsertLink');
 const emptyState = document.getElementById('emptyState');
 const editorWorkspace = document.getElementById('editorWorkspace');
+const editorTextWrapper = document.getElementById('editorTextWrapper');
+const editorHighlights = document.getElementById('editorHighlights');
 const editorGutter = document.getElementById('editorGutter');
 const gutterInner = document.getElementById('gutterInner');
 const memoTextarea = document.getElementById('memoTextarea');
@@ -809,6 +811,7 @@ async function loadFile(filePath, isNavigatingHistory = false, forceReload = fal
     updateCursorPos();
     updateLineNumbers();
     highlightActiveLine();
+    renderTextHighlights();
 
     // Highlight active tree node
     updateTreeActiveState();
@@ -1198,7 +1201,10 @@ function closeFindPanel() {
   if (!findReplacePanel) return;
   findReplacePanel.classList.add('hidden');
   frState.isOpen = false;
+  frState.matches = [];
+  frState.currentIndex = -1;
   if (btnToggleFindReplace) btnToggleFindReplace.classList.remove('active');
+  renderTextHighlights();
   memoTextarea.focus();
 }
 
@@ -1234,6 +1240,7 @@ function executeFind(direction = 0) {
     frState.currentIndex = -1;
     findCount.textContent = '0 / 0';
     findCount.style.color = '';
+    renderTextHighlights();
     return;
   }
 
@@ -1252,6 +1259,7 @@ function executeFind(direction = 0) {
     findCount.textContent = '결과 없음';
     findCount.style.color = '#ef4444';
     frState.currentIndex = -1;
+    renderTextHighlights();
     return;
   }
 
@@ -1274,6 +1282,7 @@ function executeFind(direction = 0) {
   scrollCharIntoView(cur.start);
   updateCursorPos();
   highlightActiveLine();
+  renderTextHighlights();
 }
 
 function replaceOne() {
@@ -1501,6 +1510,113 @@ function updateCursorPos() {
   cursorPos.textContent = `줄 ${line}, 열 ${col}`;
 }
 
+// --- Text Highlights (Find & Word Selection Occurrences) ---
+let renderHighlightsRaf = null;
+
+function isWordChar(char) {
+  return /^[a-zA-Z0-9_\uAC00-\uD7A3]$/.test(char);
+}
+
+function renderTextHighlights() {
+  if (renderHighlightsRaf) cancelAnimationFrame(renderHighlightsRaf);
+  renderHighlightsRaf = requestAnimationFrame(() => {
+    doRenderTextHighlights();
+  });
+}
+
+function doRenderTextHighlights() {
+  if (!editorHighlights || !memoTextarea) return;
+
+  const text = memoTextarea.value || '';
+  if (!text || memoTextarea.classList.contains('hidden')) {
+    editorHighlights.innerHTML = '';
+    editorHighlights.classList.add('hidden');
+    return;
+  }
+
+  // 1. Gather ranges to highlight
+  const ranges = [];
+
+  // A. Find & Replace matches (Priority: yellow/amber)
+  if (frState.isOpen && frState.matches && frState.matches.length > 0) {
+    frState.matches.forEach((m, idx) => {
+      const isCur = (idx === frState.currentIndex);
+      ranges.push({
+        start: m.start,
+        end: m.end,
+        className: isCur ? 'hl-match hl-current' : 'hl-match'
+      });
+    });
+  } else {
+    // B. Word Selection Occurrences (VS Code style cyan/blue)
+    const selStart = memoTextarea.selectionStart;
+    const selEnd = memoTextarea.selectionEnd;
+    if (typeof selStart === 'number' && typeof selEnd === 'number' && selEnd > selStart) {
+      const selectedWord = text.substring(selStart, selEnd);
+      // Only highlight if selection is a trimmed single word under 60 chars without newlines
+      const trimmed = selectedWord.trim();
+      if (trimmed.length >= 2 && trimmed.length <= 60 && !selectedWord.includes('\n')) {
+        const wholeWord = isWordChar(trimmed[0]) && isWordChar(trimmed[trimmed.length - 1]);
+        const q = trimmed.toLowerCase();
+        const src = text.toLowerCase();
+        let idx = src.indexOf(q);
+        while (idx !== -1) {
+          const end = idx + trimmed.length;
+          let valid = true;
+          if (wholeWord) {
+            const prevChar = idx > 0 ? text[idx - 1] : '';
+            const nextChar = end < text.length ? text[end] : '';
+            if (prevChar && isWordChar(prevChar)) valid = false;
+            if (nextChar && isWordChar(nextChar)) valid = false;
+          }
+          if (valid) {
+            ranges.push({
+              start: idx,
+              end: end,
+              className: 'hl-occurrence'
+            });
+          }
+          idx = src.indexOf(q, idx + 1);
+        }
+      }
+    }
+  }
+
+  if (ranges.length === 0) {
+    editorHighlights.innerHTML = '';
+    editorHighlights.classList.add('hidden');
+    return;
+  }
+
+  // Sort ranges by start position
+  ranges.sort((a, b) => a.start - b.start);
+
+  // Build markup
+  let html = '';
+  let lastIdx = 0;
+  for (const r of ranges) {
+    if (r.start < lastIdx) continue; // Skip overlaps safely
+    if (r.start > lastIdx) {
+      html += escapeHtml(text.substring(lastIdx, r.start));
+    }
+    html += `<mark class="${r.className}">${escapeHtml(text.substring(r.start, r.end))}</mark>`;
+    lastIdx = r.end;
+  }
+  if (lastIdx < text.length) {
+    html += escapeHtml(text.substring(lastIdx));
+  }
+  if (text.endsWith('\n')) {
+    html += ' ';
+  }
+
+  editorHighlights.innerHTML = html;
+  editorHighlights.classList.remove('hidden');
+
+  // Sync scroll
+  editorHighlights.scrollTop = memoTextarea.scrollTop;
+  editorHighlights.scrollLeft = memoTextarea.scrollLeft;
+}
+
 // --- Line Numbers (Gutter) Logic ---
 let mirrorEl = null;
 let updateLineNumbersRaf = null;
@@ -1640,12 +1756,14 @@ function updateWordWrapVisibility() {
   if (!memoTextarea) return;
   if (state.wordWrap) {
     memoTextarea.classList.remove('no-wrap');
+    if (editorHighlights) editorHighlights.classList.remove('no-wrap');
     if (btnFooterWordWrap) {
       btnFooterWordWrap.classList.add('active');
       btnFooterWordWrap.title = '자동 줄바꿈 끄기 (단축키: Alt+Z)';
     }
   } else {
     memoTextarea.classList.add('no-wrap');
+    if (editorHighlights) editorHighlights.classList.add('no-wrap');
     if (btnFooterWordWrap) {
       btnFooterWordWrap.classList.remove('active');
       btnFooterWordWrap.title = '자동 줄바꿈 켜기 (단축키: Alt+Z)';
@@ -1654,6 +1772,7 @@ function updateWordWrapVisibility() {
   if (state.showLineNumbers) {
     updateLineNumbers();
   }
+  renderTextHighlights();
 }
 
 // Prompt Modals
@@ -2345,10 +2464,14 @@ function setupEventListeners() {
     });
   }
 
-  // Scroll sync: textarea scrolls gutter
+  // Scroll sync: textarea scrolls gutter and highlights overlay
   memoTextarea.addEventListener('scroll', () => {
     if (state.showLineNumbers && editorGutter) {
       editorGutter.scrollTop = memoTextarea.scrollTop;
+    }
+    if (editorHighlights) {
+      editorHighlights.scrollTop = memoTextarea.scrollTop;
+      editorHighlights.scrollLeft = memoTextarea.scrollLeft;
     }
   }, { passive: true });
 
@@ -2379,6 +2502,7 @@ function setupEventListeners() {
     updateCursorPos();
     updateLineNumbers();
     highlightActiveLine();
+    renderTextHighlights();
 
     // Check if the content is ACTUALLY different from what's on disk
     const isActuallyModified = state.lastSavedContent !== null && memoTextarea.value !== state.lastSavedContent;
@@ -2425,6 +2549,7 @@ function setupEventListeners() {
   memoTextarea.addEventListener('click', (e) => {
     updateCursorPos();
     highlightActiveLine();
+    renderTextHighlights();
     if (e.metaKey || e.ctrlKey) {
       handleTextareaLinkClick();
     }
@@ -2432,13 +2557,19 @@ function setupEventListeners() {
 
   memoTextarea.addEventListener('dblclick', () => {
     handleTextareaLinkClick();
+    renderTextHighlights();
   });
 
   memoTextarea.addEventListener('keyup', () => {
     updateCursorPos();
     highlightActiveLine();
+    renderTextHighlights();
   });
-  memoTextarea.addEventListener('select', highlightActiveLine);
+
+  memoTextarea.addEventListener('select', () => {
+    highlightActiveLine();
+    renderTextHighlights();
+  });
 
   // Smart paste: if clipboard contains a URL and text is selected in memoTextarea, convert to [selectedText](URL)
   memoTextarea.addEventListener('paste', (e) => {

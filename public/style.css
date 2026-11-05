@@ -893,6 +893,89 @@ button svg,
   background: var(--bg-editor);
 }
 
+.editor-text-wrapper {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+}
+
+.editor-highlights {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  font-family: var(--font-sans);
+  font-size: 14.5px;
+  line-height: 1.7;
+  letter-spacing: -0.01em;
+  padding: 24px 32px;
+  overflow: hidden;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+  box-sizing: border-box;
+}
+
+.editor-highlights.no-wrap {
+  white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+/* Highlight Marks */
+.editor-highlights mark {
+  border-radius: 3px;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  padding: 1px 0;
+}
+
+/* 1. Find Search Matches: bright amber/gold */
+.editor-highlights mark.hl-match {
+  background: rgba(234, 179, 8, 0.42);
+  box-shadow: 0 0 0 1.5px rgba(234, 179, 8, 0.7);
+}
+
+/* Current active find match: prominent orange/amber */
+.editor-highlights mark.hl-current {
+  background: rgba(249, 115, 22, 0.65);
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.95);
+}
+
+/* 2. Word Selection Occurrences: distinct cyan/sky blue like VS Code / Sublime */
+.editor-highlights mark.hl-occurrence {
+  background: rgba(56, 189, 248, 0.32);
+  box-shadow: 0 0 0 1.5px rgba(56, 189, 248, 0.65);
+}
+
+[data-theme="light"] .editor-highlights mark.hl-match {
+  background: rgba(250, 204, 21, 0.55);
+  box-shadow: 0 0 0 1.5px rgba(202, 138, 4, 0.85);
+}
+
+[data-theme="light"] .editor-highlights mark.hl-current {
+  background: rgba(251, 146, 60, 0.7);
+  box-shadow: 0 0 0 2px rgba(234, 88, 12, 1);
+}
+
+[data-theme="light"] .editor-highlights mark.hl-occurrence {
+  background: rgba(14, 165, 233, 0.28);
+  box-shadow: 0 0 0 1.5px rgba(2, 132, 199, 0.75);
+}
+
 .editor-gutter {
   width: 44px;
   min-width: 44px;
@@ -939,6 +1022,9 @@ button svg,
   padding: 24px 32px;
   overflow-y: auto;
   tab-size: 2;
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
 }
 
 .memo-textarea.no-wrap {
