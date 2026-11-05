@@ -25,7 +25,7 @@
             <line x1="16" y1="17" x2="8" y2="17"/>
           </svg>
           <span class="brand-title">Desktop Memo</span>
-          <span class="version-badge" id="appVersionBadge">v1.0.23</span>
+          <span class="version-badge" id="appVersionBadge">v1.0.24</span>
         </div>
         <div class="header-tools">
           <button class="btn btn-icon btn-sm header-tool-btn" id="btnThemeToggle" title="테마 변경 (라이트 / 다크)">
@@ -264,6 +264,35 @@
                   <span>자동 줄바꿈 토글</span>
                 </span>
                 <span class="menu-item-shortcut">Alt+Z</span>
+              </button>
+              <div class="menu-divider"></div>
+              <button class="menu-item" data-action="zoom-in">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  <span>글자 크기 확대</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl++</span>
+              </button>
+              <button class="menu-item" data-action="zoom-out">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+                  <span>글자 크기 축소</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+-</span>
+              </button>
+              <button class="menu-item" data-action="zoom-reset">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                  <span>글자 크기 초기화</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+0</span>
+              </button>
+              <button class="menu-item" data-action="print-memo">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                  <span>메모 인쇄 / PDF 저장</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+P</span>
               </button>
               <div class="menu-divider"></div>
               <button class="menu-item" data-action="toggle-file-filter">
@@ -713,6 +742,25 @@
                 <td><strong>단어 바꾸기 (Replace)</strong></td>
                 <td><kbd>Cmd</kbd> + <kbd>H</kbd></td>
                 <td><kbd>Ctrl</kbd> + <kbd>H</kbd></td>
+              </tr>
+              <tr>
+                <td><strong>글자 크기 확대 / 축소 / 리셋</strong></td>
+                <td><kbd>Cmd</kbd>+<kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd></td>
+                <td><kbd>Ctrl</kbd>+<kbd>+</kbd> / <kbd>-</kbd> / <kbd>0</kbd> (휠 스크롤 가능)</td>
+              </tr>
+              <tr>
+                <td><strong>들여쓰기 / 내어쓰기</strong></td>
+                <td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd></td>
+                <td><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> (2칸 공백)</td>
+              </tr>
+              <tr>
+                <td><strong>체크리스트 할 일 토글</strong></td>
+                <td colspan="2">본문의 <code>- [ ]</code> 또는 <code>- [x]</code> 줄 <strong>더블 클릭</strong> 시 즉시 완료/미완료 토글</td>
+              </tr>
+              <tr>
+                <td><strong>메모 인쇄 / PDF 저장</strong></td>
+                <td><kbd>Cmd</kbd> + <kbd>P</kbd></td>
+                <td><kbd>Ctrl</kbd> + <kbd>P</kbd></td>
               </tr>
               <tr>
                 <td><strong>메모 즉시 저장</strong></td>

@@ -4,6 +4,7 @@
 const savedLinePref = localStorage.getItem('memo_show_line_numbers');
 const savedWrapPref = localStorage.getItem('memo_word_wrap');
 const savedShowAllFiles = localStorage.getItem('memo_show_all_files');
+const savedFontSize = localStorage.getItem('memo_font_size');
 
 let state = {
   rootFolder: '',
@@ -19,6 +20,7 @@ let state = {
   showLineNumbers: savedLinePref !== null ? savedLinePref === 'true' : true,
   wordWrap: savedWrapPref !== null ? savedWrapPref === 'true' : true,
   showAllFiles: savedShowAllFiles === 'true' ? true : false,
+  fontSize: savedFontSize ? parseInt(savedFontSize, 10) : 14.5,
   draggedTreeItem: null
 };
 
@@ -315,6 +317,7 @@ function updateFileFilterBtn() {
 // Init Application
 async function init() {
   initTheme();
+  applyFontSize(state.fontSize, false);
   updateFileFilterBtn();
   updateWordWrapVisibility();
   updateLineNumbersVisibility();
@@ -1646,16 +1649,18 @@ function renderLineNumbers() {
 
   let gutterHtml = '';
 
+  const cs = window.getComputedStyle(memoTextarea);
+  const baseHeight = Math.round(parseFloat(cs.lineHeight) || 24);
+
   if (!state.wordWrap) {
-    // When word wrap is OFF, every line is strictly 24px high
+    // When word wrap is OFF, line height strictly follows font line-height
     for (let i = 0; i < lineCount; i++) {
       const isActive = (i === currentLineIdx);
-      gutterHtml += `<div class="gutter-line${isActive ? ' active' : ''}" data-line="${i + 1}" style="height: 24px; line-height: 24px;" title="클릭하여 ${i + 1}번째 줄 선택">${i + 1}</div>`;
+      gutterHtml += `<div class="gutter-line${isActive ? ' active' : ''}" data-line="${i + 1}" style="height: ${baseHeight}px; line-height: ${baseHeight}px;" title="클릭하여 ${i + 1}번째 줄 선택">${i + 1}</div>`;
     }
   } else {
     // When word wrap is ON, measure wrapped line heights with mirror
     const mirror = getMirrorElement();
-    const cs = window.getComputedStyle(memoTextarea);
     const pl = parseFloat(cs.paddingLeft) || 24;
     const pr = parseFloat(cs.paddingRight) || 24;
     const contentWidth = Math.max(60, memoTextarea.clientWidth - pl - pr);
@@ -1679,14 +1684,48 @@ function renderLineNumbers() {
     // Measure heights and generate gutter markup
     const rows = mirror.children;
     for (let i = 0; i < lineCount; i++) {
-      const h = rows[i] ? rows[i].offsetHeight : 24;
+      const h = rows[i] ? rows[i].offsetHeight : baseHeight;
       const isActive = (i === currentLineIdx);
-      gutterHtml += `<div class="gutter-line${isActive ? ' active' : ''}" data-line="${i + 1}" style="height: ${h}px; line-height: 24px;" title="클릭하여 ${i + 1}번째 줄 선택">${i + 1}</div>`;
+      gutterHtml += `<div class="gutter-line${isActive ? ' active' : ''}" data-line="${i + 1}" style="height: ${h}px; line-height: ${baseHeight}px;" title="클릭하여 ${i + 1}번째 줄 선택">${i + 1}</div>`;
     }
   }
 
   gutterInner.innerHTML = gutterHtml;
   editorGutter.scrollTop = memoTextarea.scrollTop;
+}
+
+function applyFontSize(size, showNotification = true) {
+  const clamped = Math.min(32, Math.max(11, Math.round(size)));
+  state.fontSize = clamped;
+  localStorage.setItem('memo_font_size', String(clamped));
+  document.documentElement.style.setProperty('--editor-font-size', `${clamped}px`);
+  if (state.showLineNumbers) {
+    updateLineNumbers();
+  }
+  renderTextHighlights();
+  if (showNotification) {
+    showToast(`🔍 글자 크기: ${clamped}px`);
+  }
+}
+
+function zoomIn() {
+  applyFontSize((state.fontSize || 14.5) + 1.5);
+}
+
+function zoomOut() {
+  applyFontSize((state.fontSize || 14.5) - 1.5);
+}
+
+function zoomReset() {
+  applyFontSize(14.5);
+}
+
+function printCurrentMemo() {
+  if (!state.currentFilePath || memoTextarea.classList.contains('hidden')) {
+    alert('인쇄할 메모가 열려 있지 않습니다.');
+    return;
+  }
+  window.print();
 }
 
 function highlightActiveLine() {
@@ -2545,10 +2584,109 @@ function setupEventListeners() {
     }
   });
 
+  // Double-Click to toggle checklist todo checkbox: - [ ] <-> - [x]
   memoTextarea.addEventListener('dblclick', () => {
+    const pos = memoTextarea.selectionStart;
+    const val = memoTextarea.value;
+    const lineStart = val.lastIndexOf('\n', pos - 1) + 1;
+    let lineEnd = val.indexOf('\n', pos);
+    if (lineEnd === -1) lineEnd = val.length;
+    const line = val.substring(lineStart, lineEnd);
+
+    let toggledLine = null;
+    if (/^(\s*[-*+]|\s*\d+\.)\s*\[ \]/i.test(line)) {
+      toggledLine = line.replace(/^(\s*[-*+]|\s*\d+\.)\s*\[ \]/i, '$1 [x]');
+    } else if (/^(\s*[-*+]|\s*\d+\.)\s*\[x\]/i.test(line)) {
+      toggledLine = line.replace(/^(\s*[-*+]|\s*\d+\.)\s*\[x\]/i, '$1 [ ]');
+    }
+
+    if (toggledLine !== null) {
+      memoTextarea.focus();
+      memoTextarea.setSelectionRange(lineStart, lineEnd);
+      if (!document.execCommand('insertText', false, toggledLine)) {
+        memoTextarea.value = val.substring(0, lineStart) + toggledLine + val.substring(lineEnd);
+      }
+      memoTextarea.setSelectionRange(pos, pos);
+      memoTextarea.dispatchEvent(new Event('input'));
+      return;
+    }
+
     handleTextareaLinkClick();
     renderTextHighlights();
   });
+
+  // Tab & Shift+Tab indentation support
+  memoTextarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const text = memoTextarea.value;
+      const start = memoTextarea.selectionStart;
+      const end = memoTextarea.selectionEnd;
+
+      if (start === end) {
+        if (!e.shiftKey) {
+          // Single cursor: insert 2 spaces
+          if (!document.execCommand('insertText', false, '  ')) {
+            memoTextarea.value = text.substring(0, start) + '  ' + text.substring(end);
+            memoTextarea.selectionStart = memoTextarea.selectionEnd = start + 2;
+          }
+        } else {
+          // Shift+Tab: unindent current line
+          const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+          if (text.substring(lineStart, lineStart + 2) === '  ') {
+            memoTextarea.setSelectionRange(lineStart, lineStart + 2);
+            document.execCommand('delete');
+            const newPos = Math.max(lineStart, start - 2);
+            memoTextarea.setSelectionRange(newPos, newPos);
+          }
+        }
+      } else {
+        // Multi-line selection: indent / unindent all intersecting lines
+        const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+        let lineEnd = text.indexOf('\n', end);
+        if (lineEnd === -1) lineEnd = text.length;
+
+        const block = text.substring(lineStart, lineEnd);
+        const lines = block.split('\n');
+        let delta = 0;
+        const newLines = lines.map((line) => {
+          if (!e.shiftKey) {
+            delta += 2;
+            return '  ' + line;
+          } else {
+            if (line.startsWith('  ')) {
+              delta -= 2;
+              return line.substring(2);
+            } else if (line.startsWith(' ') || line.startsWith('\t')) {
+              delta -= 1;
+              return line.substring(1);
+            }
+            return line;
+          }
+        });
+        const newBlock = newLines.join('\n');
+        memoTextarea.focus();
+        memoTextarea.setSelectionRange(lineStart, lineEnd);
+        if (!document.execCommand('insertText', false, newBlock)) {
+          memoTextarea.value = text.substring(0, lineStart) + newBlock + text.substring(lineEnd);
+        }
+        memoTextarea.setSelectionRange(lineStart, Math.max(lineStart, end + delta));
+      }
+      memoTextarea.dispatchEvent(new Event('input'));
+    }
+  });
+
+  // Ctrl + Mouse Wheel Zoom
+  memoTextarea.addEventListener('wheel', (e) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      if (e.deltaY < 0) {
+        zoomIn();
+      } else if (e.deltaY > 0) {
+        zoomOut();
+      }
+    }
+  }, { passive: false });
 
   memoTextarea.addEventListener('mouseup', () => {
     updateCursorPos();
@@ -2922,6 +3060,34 @@ function setupKeyboardShortcuts() {
       promptNewFile();
       return;
     }
+    // Cmd/Ctrl + P: Print Memo / Export to PDF
+    if (mod && (e.key === 'p' || e.key === 'P')) {
+      e.preventDefault();
+      printCurrentMemo();
+      return;
+    }
+
+    // Cmd/Ctrl + Plus / Equal: Zoom In
+    if (mod && (e.key === '+' || e.key === '=')) {
+      e.preventDefault();
+      zoomIn();
+      return;
+    }
+
+    // Cmd/Ctrl + Minus: Zoom Out
+    if (mod && (e.key === '-' || e.key === '_')) {
+      e.preventDefault();
+      zoomOut();
+      return;
+    }
+
+    // Cmd/Ctrl + 0: Zoom Reset
+    if (mod && e.key === '0') {
+      e.preventDefault();
+      zoomReset();
+      return;
+    }
+
     // Cmd/Ctrl + O: Change Folder
     if (mod && (e.key === 'o' || e.key === 'O')) {
       e.preventDefault();
@@ -3105,6 +3271,18 @@ function handleMenuAction(action) {
       break;
     case 'toggle-word-wrap':
       toggleWordWrap();
+      break;
+    case 'zoom-in':
+      zoomIn();
+      break;
+    case 'zoom-out':
+      zoomOut();
+      break;
+    case 'zoom-reset':
+      zoomReset();
+      break;
+    case 'print-memo':
+      printCurrentMemo();
       break;
     case 'toggle-file-filter':
       state.showAllFiles = !state.showAllFiles;

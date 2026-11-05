@@ -45,6 +45,8 @@
   --radius-lg: 12px;
   --radius-xl: 16px;
 
+  --editor-font-size: 14.5px;
+
   --font-sans: -apple-system, BlinkMacSystemFont, "Pretendard Variable", Pretendard, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, "Cascadia Code", "Liberation Mono", monospace;
 }
@@ -914,7 +916,7 @@ button svg,
   color: transparent;
   -webkit-text-fill-color: transparent;
   font-family: var(--font-sans);
-  font-size: 14.5px;
+  font-size: var(--editor-font-size);
   line-height: 1.7;
   letter-spacing: -0.01em;
   padding: 24px 32px;
@@ -1016,7 +1018,7 @@ button svg,
   background: transparent;
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: 14.5px;
+  font-size: var(--editor-font-size);
   line-height: 1.7;
   letter-spacing: -0.01em;
   padding: 24px 32px;
@@ -1918,4 +1920,59 @@ kbd {
   height: 1px;
   background: var(--border-subtle);
   margin: 4px 6px;
+}
+
+/* ==========================================================================
+   Print Stylesheet (@media print)
+   ========================================================================== */
+@media print {
+  body, html {
+    background: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .sidebar,
+  .splitter,
+  .editor-header,
+  .editor-footer,
+  .find-replace-panel,
+  .editor-gutter,
+  .modal-overlay,
+  .toast {
+    display: none !important;
+  }
+
+  .app-container,
+  .editor-pane,
+  .editor-body,
+  .editor-workspace,
+  .editor-text-wrapper {
+    display: block !important;
+    height: auto !important;
+    width: 100% !important;
+    position: static !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  .editor-highlights {
+    display: none !important;
+  }
+
+  .memo-textarea {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    padding: 0 !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+    line-height: 1.6 !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
+    overflow: visible !important;
+    border: none !important;
+    resize: none !important;
+  }
 }
