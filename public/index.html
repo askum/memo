@@ -25,7 +25,7 @@
             <line x1="16" y1="17" x2="8" y2="17"/>
           </svg>
           <span class="brand-title">Desktop Memo</span>
-          <span class="version-badge" id="appVersionBadge">v1.0.25</span>
+          <span class="version-badge" id="appVersionBadge">v1.0.26</span>
         </div>
         <div class="header-tools">
           <button class="btn btn-icon btn-sm header-tool-btn" id="btnThemeToggle" title="테마 변경 (라이트 / 다크)">
@@ -238,6 +238,13 @@
                   <span>한 줄 삭제</span>
                 </span>
                 <span class="menu-item-shortcut">Ctrl+D</span>
+              </button>
+              <button class="menu-item" data-action="toggle-column-mode">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M8 8l4-4 4 4"/><path d="M8 16l4 4 4-4"/></svg>
+                  <span>열 편집 (컬럼 모드)</span>
+                </span>
+                <span class="menu-item-shortcut">Alt+Shift+↓</span>
               </button>
               <div class="menu-divider"></div>
               <button class="menu-item" data-action="find">
@@ -481,6 +488,7 @@
               placeholder="여기에 자유롭게 메모를 작성하세요... (입력시 자동으로 실시간 저장됩니다)&#10;다른 메모로 연결하려면 우측 상단 [링크 삽입]을 누르거나 '[[메모이름]]'을 적어두고 더블 클릭하면 됩니다."
               spellcheck="false"
             ></textarea>
+            <div class="editor-column-overlay" id="editorColumnOverlay" aria-hidden="true"></div>
           </div>
         </div>
       </div>
@@ -491,6 +499,8 @@
           <span id="charCount">0 글자</span>
           <span class="dot-separator">·</span>
           <span id="wordCount">0 단어</span>
+          <span class="dot-separator" id="columnModeSep" style="display: none;">·</span>
+          <span id="columnModeStatus" class="column-mode-badge" style="display: none;" title="열 편집 모드 동작 중 (Esc 또는 클릭하여 해제)">열 모드: 0줄</span>
           <span class="dot-separator">·</span>
           <button class="footer-link-btn" id="btnFooterHelp" title="기능 및 단축키 안내 열기">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -765,6 +775,16 @@
                 <td><strong>한 줄 삭제 (현재 줄 / 선택 블록)</strong></td>
                 <td><kbd>Cmd</kbd> + <kbd>D</kbd> 또는 <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd></td>
                 <td><kbd>Ctrl</kbd> + <kbd>D</kbd> 또는 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd></td>
+              </tr>
+              <tr>
+                <td><strong>열 편집 (마우스 드래그)</strong></td>
+                <td><kbd>Option</kbd> 누르고 마우스 아래로 드래그</td>
+                <td><kbd>Alt</kbd> 누르고 마우스 아래로 드래그</td>
+              </tr>
+              <tr>
+                <td><strong>열 편집 (방향키 확장)</strong></td>
+                <td><kbd>Option</kbd> + <kbd>Shift</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> / <kbd>←</kbd> / <kbd>→</kbd></td>
+                <td><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd> / <kbd>←</kbd> / <kbd>→</kbd></td>
               </tr>
               <tr>
                 <td><strong>상단 편집 & 도구 메뉴</strong></td>

@@ -70,6 +70,9 @@ const editorHighlights = document.getElementById('editorHighlights');
 const editorGutter = document.getElementById('editorGutter');
 const gutterInner = document.getElementById('gutterInner');
 const memoTextarea = document.getElementById('memoTextarea');
+const editorColumnOverlay = document.getElementById('editorColumnOverlay');
+const columnModeStatus = document.getElementById('columnModeStatus');
+const columnModeSep = document.getElementById('columnModeSep');
 
 // Link Modal Elements
 const linkModalOverlay = document.getElementById('linkModalOverlay');
@@ -785,6 +788,7 @@ async function loadFile(filePath, isNavigatingHistory = false, forceReload = fal
     state.currentFilePath = filePath;
     state.selectedNodePath = filePath;
     state.selectedNodeIsDir = false;
+    if (colMode && colMode.active) exitColumnMode();
     state.isDirty = false;
     state.lastSavedContent = fileData.content || '';
     state.lastSavedTimeStr = fileData.mtime ? formatTime(fileData.mtime) : '';
@@ -832,6 +836,9 @@ async function loadFile(filePath, isNavigatingHistory = false, forceReload = fal
     updateLineNumbers();
     highlightActiveLine();
     renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
 
     // Highlight active tree node
     updateTreeActiveState();
@@ -1225,6 +1232,9 @@ function closeFindPanel() {
   frState.currentIndex = -1;
   if (btnToggleFindReplace) btnToggleFindReplace.classList.remove('active');
   renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
   memoTextarea.focus();
 }
 
@@ -1261,6 +1271,9 @@ function executeFind(direction = 0) {
     findCount.textContent = '0 / 0';
     findCount.style.color = '';
     renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
     return;
   }
 
@@ -1280,6 +1293,9 @@ function executeFind(direction = 0) {
     findCount.style.color = '#ef4444';
     frState.currentIndex = -1;
     renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
     return;
   }
 
@@ -1303,6 +1319,9 @@ function executeFind(direction = 0) {
   updateCursorPos();
   highlightActiveLine();
   renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
 }
 
 function replaceOne() {
@@ -1720,6 +1739,9 @@ function applyFontSize(size, showNotification = true) {
     updateLineNumbers();
   }
   renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
   if (showNotification) {
     showToast(`🔍 글자 크기: ${clamped}px`);
   }
@@ -1819,6 +1841,9 @@ function updateWordWrapVisibility() {
     updateLineNumbers();
   }
   renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
 }
 
 // Prompt Modals
@@ -2519,6 +2544,9 @@ function setupEventListeners() {
       editorHighlights.scrollTop = memoTextarea.scrollTop;
       editorHighlights.scrollLeft = memoTextarea.scrollLeft;
     }
+    if (colMode.active) {
+      renderColumnSelection();
+    }
   }, { passive: true });
 
   // Scroll sync: wheel over gutter scrolls textarea
@@ -2549,6 +2577,9 @@ function setupEventListeners() {
     updateLineNumbers();
     highlightActiveLine();
     renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
 
     // Check if the content is ACTUALLY different from what's on disk
     const isActuallyModified = state.lastSavedContent !== null && memoTextarea.value !== state.lastSavedContent;
@@ -2591,11 +2622,59 @@ function setupEventListeners() {
     }
   });
 
+  // Column Selection: Alt + Mouse Click & Drag
+  memoTextarea.addEventListener('mousedown', (e) => {
+    if (e.altKey && e.button === 0) {
+      e.preventDefault();
+      memoTextarea.focus();
+      const coords = getLineColFromMouse(e);
+      colMode.active = true;
+      colMode.isDragging = true;
+      colMode.anchorLine = coords.line;
+      colMode.anchorCol = coords.col;
+      colMode.headLine = coords.line;
+      colMode.headCol = coords.col;
+      renderColumnSelection();
+      updateColumnModeStatus();
+    } else {
+      if (colMode.active) {
+        exitColumnMode();
+      }
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (colMode.isDragging) {
+      const coords = getLineColFromMouse(e);
+      colMode.headLine = coords.line;
+      colMode.headCol = coords.col;
+      renderColumnSelection();
+      updateColumnModeStatus();
+    }
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (colMode.isDragging) {
+      colMode.isDragging = false;
+      if (colMode.anchorLine === colMode.headLine && colMode.anchorCol === colMode.headCol) {
+        exitColumnMode();
+      } else {
+        memoTextarea.focus();
+        setNativeCursorAt(colMode.headLine, colMode.headCol);
+        renderColumnSelection();
+        updateColumnModeStatus();
+      }
+    }
+  });
+
   // Click & Double-Click to open link directly in textarea
   memoTextarea.addEventListener('click', (e) => {
     updateCursorPos();
     highlightActiveLine();
     renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
     if (e.metaKey || e.ctrlKey) {
       handleTextareaLinkClick();
     }
@@ -2630,10 +2709,121 @@ function setupEventListeners() {
 
     handleTextareaLinkClick();
     renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
   });
 
-  // Tab & Shift+Tab indentation support
+  // Keyboard handlers for Tab, Shift+Tab, and Column Selection mode
   memoTextarea.addEventListener('keydown', (e) => {
+    // 1. Alt + Shift + Arrows: Notepad++ style column selection
+    if (e.altKey && e.shiftKey) {
+      const text = memoTextarea.value;
+      const lines = text.split('\n');
+      if (e.key === 'ArrowDown' || e.key === 'Down') {
+        e.preventDefault();
+        if (!colMode.active) {
+          const cur = getLineAndColFromPos(text, memoTextarea.selectionStart);
+          colMode.active = true;
+          colMode.anchorLine = cur.line;
+          colMode.anchorCol = cur.col;
+          colMode.headLine = Math.min(lines.length - 1, cur.line + 1);
+          colMode.headCol = cur.col;
+        } else {
+          colMode.headLine = Math.min(lines.length - 1, colMode.headLine + 1);
+        }
+        setNativeCursorAt(colMode.headLine, colMode.headCol);
+        renderColumnSelection();
+        updateColumnModeStatus();
+        return;
+      }
+      if (e.key === 'ArrowUp' || e.key === 'Up') {
+        e.preventDefault();
+        if (!colMode.active) {
+          const cur = getLineAndColFromPos(text, memoTextarea.selectionStart);
+          colMode.active = true;
+          colMode.anchorLine = cur.line;
+          colMode.anchorCol = cur.col;
+          colMode.headLine = Math.max(0, cur.line - 1);
+          colMode.headCol = cur.col;
+        } else {
+          colMode.headLine = Math.max(0, colMode.headLine - 1);
+        }
+        setNativeCursorAt(colMode.headLine, colMode.headCol);
+        renderColumnSelection();
+        updateColumnModeStatus();
+        return;
+      }
+      if (e.key === 'ArrowRight' || e.key === 'Right') {
+        e.preventDefault();
+        if (colMode.active) {
+          colMode.headCol++;
+          setNativeCursorAt(colMode.headLine, colMode.headCol);
+          renderColumnSelection();
+          updateColumnModeStatus();
+        }
+        return;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'Left') {
+        e.preventDefault();
+        if (colMode.active) {
+          colMode.headCol = Math.max(0, colMode.headCol - 1);
+          setNativeCursorAt(colMode.headLine, colMode.headCol);
+          renderColumnSelection();
+          updateColumnModeStatus();
+        }
+        return;
+      }
+    }
+
+    // 2. Intercept keys when Column Mode is active
+    if (colMode.active) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        exitColumnMode();
+        return;
+      }
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleColumnBackspace();
+        return;
+      }
+      if (e.key === 'Delete') {
+        e.preventDefault();
+        handleColumnDelete();
+        return;
+      }
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        handleColumnInsert('  ');
+        return;
+      }
+      // Arrow keys without Alt/Shift cancel column mode
+      if (!e.altKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End')) {
+        exitColumnMode();
+        return;
+      }
+      // Copy selected block
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+        const minLine = Math.min(colMode.anchorLine, colMode.headLine);
+        const maxLine = Math.max(colMode.anchorLine, colMode.headLine);
+        const minCol = Math.min(colMode.anchorCol, colMode.headCol);
+        const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
+        if (minCol !== maxCol) {
+          const lines = memoTextarea.value.split('\n');
+          const copied = [];
+          for (let i = minLine; i <= maxLine; i++) {
+            const l = lines[i] || '';
+            copied.push(l.slice(minCol, maxCol));
+          }
+          navigator.clipboard.writeText(copied.join('\n'));
+          e.preventDefault();
+          return;
+        }
+      }
+    }
+
+    // 3. Tab & Shift+Tab indentation support
     if (e.key === 'Tab') {
       e.preventDefault();
       const text = memoTextarea.value;
@@ -2693,6 +2883,31 @@ function setupEventListeners() {
     }
   });
 
+  // Intercept typed characters and IME in Column Mode
+  memoTextarea.addEventListener('beforeinput', (e) => {
+    if (colMode.active) {
+      if (e.inputType === 'insertText' && e.data) {
+        e.preventDefault();
+        handleColumnInsert(e.data);
+      } else if (e.inputType === 'deleteContentBackward') {
+        e.preventDefault();
+        handleColumnBackspace();
+      } else if (e.inputType === 'deleteContentForward') {
+        e.preventDefault();
+        handleColumnDelete();
+      } else if (e.inputType === 'insertLineBreak' || e.inputType === 'insertParagraph') {
+        e.preventDefault();
+        exitColumnMode();
+      }
+    }
+  });
+
+  memoTextarea.addEventListener('compositionend', (e) => {
+    if (colMode.active && e.data) {
+      handleColumnInsert(e.data);
+    }
+  });
+
   // Ctrl + Mouse Wheel Zoom
   memoTextarea.addEventListener('wheel', (e) => {
     if (e.ctrlKey || e.metaKey) {
@@ -2709,17 +2924,26 @@ function setupEventListeners() {
     updateCursorPos();
     highlightActiveLine();
     renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
   });
 
   memoTextarea.addEventListener('keyup', () => {
     updateCursorPos();
     highlightActiveLine();
     renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
   });
 
   memoTextarea.addEventListener('select', () => {
     highlightActiveLine();
     renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
   });
 
   // Smart paste: if clipboard contains a URL and text is selected in memoTextarea, convert to [selectedText](URL)
@@ -3181,6 +3405,392 @@ function jumpToContentMatch(lineNum, column, matchLen, query) {
 
   renderLineNumbers();
   renderTextHighlights();
+  if (colMode && colMode.active) {
+    renderColumnSelection();
+  }
+}
+
+/* ==========================================================
+   COLUMN MODE / BLOCK SELECTION (Notepad++ / VS Code style)
+   ========================================================== */
+let colMode = {
+  active: false,
+  isDragging: false,
+  anchorLine: 0,
+  anchorCol: 0,
+  headLine: 0,
+  headCol: 0
+};
+let colMeasureCanvas = null;
+let colMeasureCtx = null;
+
+function getColMeasureContext() {
+  if (!colMeasureCtx) {
+    colMeasureCanvas = document.createElement('canvas');
+    colMeasureCtx = colMeasureCanvas.getContext('2d');
+  }
+  const cs = window.getComputedStyle(memoTextarea);
+  colMeasureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  return { ctx: colMeasureCtx, cs };
+}
+
+function getLineAndColFromPos(text, pos) {
+  const safePos = Math.max(0, Math.min(text.length, pos));
+  const before = text.slice(0, safePos);
+  const lines = before.split('\n');
+  const line = lines.length - 1;
+  const col = lines[line].length;
+  return { line, col };
+}
+
+function getLineColFromMouse(e) {
+  const rect = memoTextarea.getBoundingClientRect();
+  const { ctx, cs } = getColMeasureContext();
+  const paddingTop = parseFloat(cs.paddingTop) || 24;
+  const paddingLeft = parseFloat(cs.paddingLeft) || 32;
+  const lineHeight = parseFloat(cs.lineHeight) || 24;
+  const scrollTop = memoTextarea.scrollTop;
+  const scrollLeft = memoTextarea.scrollLeft;
+
+  const text = memoTextarea.value;
+  const lines = text.split('\n');
+
+  // Line index
+  const relY = e.clientY - rect.top + scrollTop - paddingTop;
+  let line = Math.floor(relY / lineHeight);
+  line = Math.max(0, Math.min(lines.length - 1, line));
+
+  // Column index
+  const relX = e.clientX - rect.left + scrollLeft - paddingLeft;
+  if (relX <= 0) {
+    return { line, col: 0 };
+  }
+
+  const lineText = lines[line] || '';
+  let bestCol = 0;
+  let prevWidth = 0;
+  for (let c = 1; c <= lineText.length; c++) {
+    const w = ctx.measureText(lineText.slice(0, c)).width;
+    const mid = (prevWidth + w) / 2;
+    if (relX < mid) {
+      bestCol = c - 1;
+      break;
+    }
+    prevWidth = w;
+    bestCol = c;
+  }
+
+  // Handle click past end of line
+  if (relX > prevWidth) {
+    const spaceWidth = ctx.measureText(' ').width || 8;
+    const extra = Math.round((relX - prevWidth) / spaceWidth);
+    bestCol = lineText.length + extra;
+  }
+
+  return { line, col: Math.max(0, bestCol) };
+}
+
+function exitColumnMode() {
+  colMode.active = false;
+  colMode.isDragging = false;
+  if (editorColumnOverlay) {
+    editorColumnOverlay.innerHTML = '';
+  }
+  updateColumnModeStatus();
+}
+
+function updateColumnModeStatus() {
+  if (!columnModeStatus || !columnModeSep) return;
+  if (!colMode.active) {
+    columnModeStatus.style.display = 'none';
+    columnModeSep.style.display = 'none';
+    return;
+  }
+  const minLine = Math.min(colMode.anchorLine, colMode.headLine);
+  const maxLine = Math.max(colMode.anchorLine, colMode.headLine);
+  const lineCount = maxLine - minLine + 1;
+  const minCol = Math.min(colMode.anchorCol, colMode.headCol);
+  const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
+
+  columnModeStatus.style.display = 'inline-flex';
+  columnModeSep.style.display = 'inline';
+  if (minCol === maxCol) {
+    columnModeStatus.textContent = `열 모드: ${lineCount}줄 (열 ${minCol + 1})`;
+  } else {
+    columnModeStatus.textContent = `열 모드: ${lineCount}줄 × ${Math.abs(maxCol - minCol)}자`;
+  }
+}
+
+function renderColumnSelection() {
+  if (!editorColumnOverlay) return;
+  if (!colMode.active) {
+    editorColumnOverlay.innerHTML = '';
+    return;
+  }
+
+  const text = memoTextarea.value;
+  const lines = text.split('\n');
+  const minLine = Math.min(colMode.anchorLine, colMode.headLine);
+  const maxLine = Math.max(colMode.anchorLine, colMode.headLine);
+  const minCol = Math.min(colMode.anchorCol, colMode.headCol);
+  const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
+
+  const { ctx, cs } = getColMeasureContext();
+  const paddingTop = parseFloat(cs.paddingTop) || 24;
+  const paddingLeft = parseFloat(cs.paddingLeft) || 32;
+  const lineHeight = parseFloat(cs.lineHeight) || 24;
+  const scrollTop = memoTextarea.scrollTop;
+  const scrollLeft = memoTextarea.scrollLeft;
+  const clientHeight = memoTextarea.clientHeight;
+
+  let html = '';
+
+  for (let L = minLine; L <= maxLine; L++) {
+    const y = paddingTop + L * lineHeight - scrollTop;
+    if (y + lineHeight < 0 || y > clientHeight) continue;
+
+    const line = lines[L] || '';
+
+    if (minCol === maxCol) {
+      // Multi-caret line
+      const textBefore = (line.length >= minCol) ? line.slice(0, minCol) : line + ' '.repeat(minCol - line.length);
+      const textWidth = ctx.measureText(textBefore).width;
+      const x = paddingLeft + textWidth - scrollLeft;
+      html += `<div class="column-caret" style="top:${y}px;left:${x}px;height:${lineHeight}px;"></div>`;
+    } else {
+      // Block selection rectangle
+      const textBefore1 = (line.length >= minCol) ? line.slice(0, minCol) : line + ' '.repeat(minCol - line.length);
+      const textBefore2 = (line.length >= maxCol) ? line.slice(0, maxCol) : line + ' '.repeat(maxCol - line.length);
+      const x1 = paddingLeft + ctx.measureText(textBefore1).width - scrollLeft;
+      const x2 = paddingLeft + ctx.measureText(textBefore2).width - scrollLeft;
+      const boxX = Math.min(x1, x2);
+      const boxW = Math.max(2, Math.abs(x2 - x1));
+      html += `<div class="column-block-sel" style="top:${y}px;left:${boxX}px;width:${boxW}px;height:${lineHeight}px;"></div>`;
+    }
+  }
+
+  // Also render head caret if in block mode
+  if (minCol !== maxCol) {
+    const headY = paddingTop + colMode.headLine * lineHeight - scrollTop;
+    if (headY + lineHeight >= 0 && headY <= clientHeight) {
+      const headLineText = lines[colMode.headLine] || '';
+      const textBefore = (headLineText.length >= colMode.headCol) ? headLineText.slice(0, colMode.headCol) : headLineText + ' '.repeat(colMode.headCol - headLineText.length);
+      const headX = paddingLeft + ctx.measureText(textBefore).width - scrollLeft;
+      html += `<div class="column-caret" style="top:${headY}px;left:${headX}px;height:${lineHeight}px;"></div>`;
+    }
+  }
+
+  editorColumnOverlay.innerHTML = html;
+}
+
+function applyColumnInsert(line, minCol, maxCol, insertText) {
+  let paddedLine = line;
+  if (paddedLine.length < minCol) {
+    paddedLine = paddedLine + ' '.repeat(minCol - paddedLine.length);
+  }
+  const before = paddedLine.slice(0, minCol);
+  const after = paddedLine.slice(Math.max(minCol, maxCol));
+  return before + insertText + after;
+}
+
+function applyColumnBackspace(line, minCol, maxCol) {
+  let paddedLine = line;
+  if (minCol !== maxCol) {
+    if (paddedLine.length < minCol) return paddedLine;
+    const before = paddedLine.slice(0, minCol);
+    const after = paddedLine.slice(Math.max(minCol, maxCol));
+    return before + after;
+  } else {
+    if (minCol <= 0) return paddedLine;
+    if (paddedLine.length < minCol) {
+      paddedLine = paddedLine + ' '.repeat(minCol - paddedLine.length);
+    }
+    const before = paddedLine.slice(0, minCol - 1);
+    const after = paddedLine.slice(minCol);
+    return before + after;
+  }
+}
+
+function applyColumnDelete(line, minCol, maxCol) {
+  let paddedLine = line;
+  if (minCol !== maxCol) {
+    if (paddedLine.length < minCol) return paddedLine;
+    const before = paddedLine.slice(0, minCol);
+    const after = paddedLine.slice(Math.max(minCol, maxCol));
+    return before + after;
+  } else {
+    if (paddedLine.length <= minCol) return paddedLine;
+    const before = paddedLine.slice(0, minCol);
+    const after = paddedLine.slice(minCol + 1);
+    return before + after;
+  }
+}
+
+function setNativeCursorAt(lineNum, colNum) {
+  const text = memoTextarea.value;
+  const lines = text.split('\n');
+  if (lineNum < 0 || lineNum >= lines.length) return;
+  let offset = 0;
+  for (let i = 0; i < lineNum; i++) {
+    offset += lines[i].length + 1;
+  }
+  const col = Math.min(lines[lineNum].length, colNum);
+  offset += col;
+  memoTextarea.setSelectionRange(offset, offset);
+}
+
+function handleColumnInsert(insertStr) {
+  const minLine = Math.min(colMode.anchorLine, colMode.headLine);
+  const maxLine = Math.max(colMode.anchorLine, colMode.headLine);
+  const minCol = Math.min(colMode.anchorCol, colMode.headCol);
+  const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
+
+  const text = memoTextarea.value;
+  const lines = text.split('\n');
+
+  let startOffset = 0;
+  for (let i = 0; i < minLine; i++) {
+    startOffset += lines[i].length + 1;
+  }
+  let endOffset = startOffset;
+  for (let i = minLine; i <= maxLine; i++) {
+    endOffset += lines[i].length + (i < lines.length - 1 ? 1 : 0);
+  }
+  if (maxLine === lines.length - 1) {
+    endOffset = text.length;
+  }
+
+  const newLines = [];
+  for (let i = minLine; i <= maxLine; i++) {
+    const line = lines[i] || '';
+    const newLine = applyColumnInsert(line, minCol, maxCol, insertStr);
+    newLines.push(newLine);
+  }
+  const newBlock = newLines.join('\n');
+
+  memoTextarea.focus();
+  memoTextarea.setSelectionRange(startOffset, endOffset);
+  if (!document.execCommand('insertText', false, newBlock)) {
+    memoTextarea.value = text.slice(0, startOffset) + newBlock + text.slice(endOffset);
+  }
+
+  const newCol = minCol + insertStr.length;
+  colMode.anchorCol = newCol;
+  colMode.headCol = newCol;
+
+  setNativeCursorAt(colMode.headLine, newCol);
+
+  state.isDirty = true;
+  updateSaveStatus('editing');
+  updateStats();
+  if (state.saveTimeout) clearTimeout(state.saveTimeout);
+  state.saveTimeout = setTimeout(() => saveCurrentFile(false), 1000);
+
+  renderColumnSelection();
+  updateColumnModeStatus();
+}
+
+function handleColumnBackspace() {
+  const minLine = Math.min(colMode.anchorLine, colMode.headLine);
+  const maxLine = Math.max(colMode.anchorLine, colMode.headLine);
+  const minCol = Math.min(colMode.anchorCol, colMode.headCol);
+  const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
+
+  if (minCol === maxCol && minCol <= 0) return;
+
+  const text = memoTextarea.value;
+  const lines = text.split('\n');
+
+  let startOffset = 0;
+  for (let i = 0; i < minLine; i++) {
+    startOffset += lines[i].length + 1;
+  }
+  let endOffset = startOffset;
+  for (let i = minLine; i <= maxLine; i++) {
+    endOffset += lines[i].length + (i < lines.length - 1 ? 1 : 0);
+  }
+  if (maxLine === lines.length - 1) {
+    endOffset = text.length;
+  }
+
+  const newLines = [];
+  for (let i = minLine; i <= maxLine; i++) {
+    const line = lines[i] || '';
+    const newLine = applyColumnBackspace(line, minCol, maxCol);
+    newLines.push(newLine);
+  }
+  const newBlock = newLines.join('\n');
+
+  memoTextarea.focus();
+  memoTextarea.setSelectionRange(startOffset, endOffset);
+  if (!document.execCommand('insertText', false, newBlock)) {
+    memoTextarea.value = text.slice(0, startOffset) + newBlock + text.slice(endOffset);
+  }
+
+  const newCol = (minCol !== maxCol) ? minCol : Math.max(0, minCol - 1);
+  colMode.anchorCol = newCol;
+  colMode.headCol = newCol;
+
+  setNativeCursorAt(colMode.headLine, newCol);
+
+  state.isDirty = true;
+  updateSaveStatus('editing');
+  updateStats();
+  if (state.saveTimeout) clearTimeout(state.saveTimeout);
+  state.saveTimeout = setTimeout(() => saveCurrentFile(false), 1000);
+
+  renderColumnSelection();
+  updateColumnModeStatus();
+}
+
+function handleColumnDelete() {
+  const minLine = Math.min(colMode.anchorLine, colMode.headLine);
+  const maxLine = Math.max(colMode.anchorLine, colMode.headLine);
+  const minCol = Math.min(colMode.anchorCol, colMode.headCol);
+  const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
+
+  const text = memoTextarea.value;
+  const lines = text.split('\n');
+
+  let startOffset = 0;
+  for (let i = 0; i < minLine; i++) {
+    startOffset += lines[i].length + 1;
+  }
+  let endOffset = startOffset;
+  for (let i = minLine; i <= maxLine; i++) {
+    endOffset += lines[i].length + (i < lines.length - 1 ? 1 : 0);
+  }
+  if (maxLine === lines.length - 1) {
+    endOffset = text.length;
+  }
+
+  const newLines = [];
+  for (let i = minLine; i <= maxLine; i++) {
+    const line = lines[i] || '';
+    const newLine = applyColumnDelete(line, minCol, maxCol);
+    newLines.push(newLine);
+  }
+  const newBlock = newLines.join('\n');
+
+  memoTextarea.focus();
+  memoTextarea.setSelectionRange(startOffset, endOffset);
+  if (!document.execCommand('insertText', false, newBlock)) {
+    memoTextarea.value = text.slice(0, startOffset) + newBlock + text.slice(endOffset);
+  }
+
+  colMode.anchorCol = minCol;
+  colMode.headCol = minCol;
+
+  setNativeCursorAt(colMode.headLine, minCol);
+
+  state.isDirty = true;
+  updateSaveStatus('editing');
+  updateStats();
+  if (state.saveTimeout) clearTimeout(state.saveTimeout);
+  state.saveTimeout = setTimeout(() => saveCurrentFile(false), 1000);
+
+  renderColumnSelection();
+  updateColumnModeStatus();
 }
 
 // Resizable Splitter
@@ -3635,6 +4245,21 @@ function handleMenuAction(action) {
     case 'delete-line':
       deleteCurrentLines();
       break;
+    case 'toggle-column-mode': {
+      const text = memoTextarea.value;
+      const lines = text.split('\n');
+      const cur = getLineAndColFromPos(text, memoTextarea.selectionStart);
+      colMode.active = true;
+      colMode.anchorLine = cur.line;
+      colMode.anchorCol = cur.col;
+      colMode.headLine = Math.min(lines.length - 1, cur.line + 1);
+      colMode.headCol = cur.col;
+      memoTextarea.focus();
+      setNativeCursorAt(colMode.headLine, colMode.headCol);
+      renderColumnSelection();
+      updateColumnModeStatus();
+      break;
+    }
     case 'find':
       openFindPanel(false);
       break;
