@@ -1593,8 +1593,8 @@ function doRenderTextHighlights() {
     if (typeof selStart === 'number' && typeof selEnd === 'number' && selEnd > selStart) {
       const selectedText = text.substring(selStart, selEnd);
       const trimmed = selectedText.trim();
-      // Allow single character (Korean, CJK, special symbol) or 2+ characters without newline up to 80 chars
-      if (trimmed.length >= 1 && trimmed.length <= 80 && !selectedText.includes('\n')) {
+      // Only highlight identical occurrences when 2 or more characters are selected (up to 80 chars)
+      if (trimmed.length >= 2 && trimmed.length <= 80 && !selectedText.includes('\n')) {
         const q = trimmed.toLowerCase();
         const src = text.toLowerCase();
         let idx = src.indexOf(q);
@@ -3421,17 +3421,26 @@ let colMode = {
   headLine: 0,
   headCol: 0
 };
-let colMeasureCanvas = null;
-let colMeasureCtx = null;
-
-function getColMeasureContext() {
-  if (!colMeasureCtx) {
-    colMeasureCanvas = document.createElement('canvas');
-    colMeasureCtx = colMeasureCanvas.getContext('2d');
+// Accurate DOM Text Measurement for Column Mode
+let colMeasureSpan = null;
+function measureColTextWidth(text) {
+  if (!colMeasureSpan) {
+    colMeasureSpan = document.createElement('span');
+    colMeasureSpan.style.position = 'absolute';
+    colMeasureSpan.style.visibility = 'hidden';
+    colMeasureSpan.style.whiteSpace = 'pre';
+    colMeasureSpan.style.pointerEvents = 'none';
+    colMeasureSpan.style.top = '-9999px';
+    colMeasureSpan.style.left = '-9999px';
+    document.body.appendChild(colMeasureSpan);
   }
   const cs = window.getComputedStyle(memoTextarea);
-  colMeasureCtx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-  return { ctx: colMeasureCtx, cs };
+  colMeasureSpan.style.fontFamily = cs.fontFamily;
+  colMeasureSpan.style.fontSize = cs.fontSize;
+  colMeasureSpan.style.fontWeight = cs.fontWeight;
+  colMeasureSpan.style.letterSpacing = cs.letterSpacing;
+  colMeasureSpan.textContent = text || '';
+  return colMeasureSpan.getBoundingClientRect().width;
 }
 
 function getLineAndColFromPos(text, pos) {
@@ -3445,7 +3454,7 @@ function getLineAndColFromPos(text, pos) {
 
 function getLineColFromMouse(e) {
   const rect = memoTextarea.getBoundingClientRect();
-  const { ctx, cs } = getColMeasureContext();
+  const cs = window.getComputedStyle(memoTextarea);
   const paddingTop = parseFloat(cs.paddingTop) || 24;
   const paddingLeft = parseFloat(cs.paddingLeft) || 32;
   const lineHeight = parseFloat(cs.lineHeight) || 24;
@@ -3468,22 +3477,31 @@ function getLineColFromMouse(e) {
 
   const lineText = lines[line] || '';
   let bestCol = 0;
-  let prevWidth = 0;
-  for (let c = 1; c <= lineText.length; c++) {
-    const w = ctx.measureText(lineText.slice(0, c)).width;
-    const mid = (prevWidth + w) / 2;
-    if (relX < mid) {
-      bestCol = c - 1;
-      break;
+
+  // Binary search with measureColTextWidth
+  let low = 0;
+  let high = lineText.length;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const w = measureColTextWidth(lineText.slice(0, mid));
+    if (w < relX) {
+      bestCol = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
     }
-    prevWidth = w;
-    bestCol = c;
   }
 
-  // Handle click past end of line
-  if (relX > prevWidth) {
-    const spaceWidth = ctx.measureText(' ').width || 8;
-    const extra = Math.round((relX - prevWidth) / spaceWidth);
+  const w1 = measureColTextWidth(lineText.slice(0, bestCol));
+  const w2 = measureColTextWidth(lineText.slice(0, Math.min(lineText.length, bestCol + 1)));
+  if (Math.abs(relX - w2) < Math.abs(relX - w1)) {
+    bestCol = Math.min(lineText.length, bestCol + 1);
+  }
+
+  const endWidth = measureColTextWidth(lineText);
+  if (relX > endWidth) {
+    const spaceWidth = Math.max(6, measureColTextWidth(' '));
+    const extra = Math.round((relX - endWidth) / spaceWidth);
     bestCol = lineText.length + extra;
   }
 
@@ -3535,13 +3553,15 @@ function renderColumnSelection() {
   const minCol = Math.min(colMode.anchorCol, colMode.headCol);
   const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
 
-  const { ctx, cs } = getColMeasureContext();
+  const cs = window.getComputedStyle(memoTextarea);
   const paddingTop = parseFloat(cs.paddingTop) || 24;
   const paddingLeft = parseFloat(cs.paddingLeft) || 32;
   const lineHeight = parseFloat(cs.lineHeight) || 24;
   const scrollTop = memoTextarea.scrollTop;
   const scrollLeft = memoTextarea.scrollLeft;
   const clientHeight = memoTextarea.clientHeight;
+
+  const charCellWidth = Math.max(8, measureColTextWidth('M') * 0.7);
 
   let html = '';
 
@@ -3552,19 +3572,23 @@ function renderColumnSelection() {
     const line = lines[L] || '';
 
     if (minCol === maxCol) {
-      // Multi-caret line
+      // Single Column Cursor: Show both a bright caret AND a dashed column highlight track!
       const textBefore = (line.length >= minCol) ? line.slice(0, minCol) : line + ' '.repeat(minCol - line.length);
-      const textWidth = ctx.measureText(textBefore).width;
+      const textWidth = measureColTextWidth(textBefore);
       const x = paddingLeft + textWidth - scrollLeft;
-      html += `<div class="column-caret" style="top:${y}px;left:${x}px;height:${lineHeight}px;"></div>`;
+
+      // Dashed column cell highlight so the user can clearly see which column is selected
+      html += `<div class="column-cell-highlight" style="top:${y}px;left:${x}px;width:${charCellWidth}px;height:${lineHeight}px;"></div>`;
+      // High-visibility vertical caret bar
+      html += `<div class="column-caret" style="top:${y}px;left:${x - 1}px;height:${lineHeight}px;"></div>`;
     } else {
-      // Block selection rectangle
+      // Rectangular Block Selection
       const textBefore1 = (line.length >= minCol) ? line.slice(0, minCol) : line + ' '.repeat(minCol - line.length);
       const textBefore2 = (line.length >= maxCol) ? line.slice(0, maxCol) : line + ' '.repeat(maxCol - line.length);
-      const x1 = paddingLeft + ctx.measureText(textBefore1).width - scrollLeft;
-      const x2 = paddingLeft + ctx.measureText(textBefore2).width - scrollLeft;
+      const x1 = paddingLeft + measureColTextWidth(textBefore1) - scrollLeft;
+      const x2 = paddingLeft + measureColTextWidth(textBefore2) - scrollLeft;
       const boxX = Math.min(x1, x2);
-      const boxW = Math.max(2, Math.abs(x2 - x1));
+      const boxW = Math.max(4, Math.abs(x2 - x1));
       html += `<div class="column-block-sel" style="top:${y}px;left:${boxX}px;width:${boxW}px;height:${lineHeight}px;"></div>`;
     }
   }
@@ -3575,8 +3599,8 @@ function renderColumnSelection() {
     if (headY + lineHeight >= 0 && headY <= clientHeight) {
       const headLineText = lines[colMode.headLine] || '';
       const textBefore = (headLineText.length >= colMode.headCol) ? headLineText.slice(0, colMode.headCol) : headLineText + ' '.repeat(colMode.headCol - headLineText.length);
-      const headX = paddingLeft + ctx.measureText(textBefore).width - scrollLeft;
-      html += `<div class="column-caret" style="top:${headY}px;left:${headX}px;height:${lineHeight}px;"></div>`;
+      const headX = paddingLeft + measureColTextWidth(textBefore) - scrollLeft;
+      html += `<div class="column-caret" style="top:${headY}px;left:${headX - 1}px;height:${lineHeight}px;"></div>`;
     }
   }
 
