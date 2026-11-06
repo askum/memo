@@ -230,6 +230,144 @@ function findFileInDir(dir, targetName) {
   return null;
 }
 
+// Known binary/media extensions to skip during full-text content search
+const BINARY_EXTENSIONS = new Set([
+  '.exe', '.dll', '.bin', '.dat', '.iso', '.img', '.sys', '.class',
+  '.zip', '.tar', '.gz', '.7z', '.rar', '.bz2', '.tgz',
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.svgz', '.tif', '.tiff',
+  '.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac',
+  '.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm',
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.woff', '.woff2', '.ttf', '.eot', '.otf'
+]);
+
+function isSearchableFile(fileName, stat) {
+  if (!stat || stat.size > 5 * 1024 * 1024) return false; // skip files > 5MB
+  const ext = path.extname(fileName).toLowerCase();
+  if (BINARY_EXTENSIONS.has(ext)) return false;
+  return true;
+}
+
+// Search text recursively across all text files within a directory
+function searchDirectoryContent(rootDir, query, maxResults = 500) {
+  if (!query || !query.trim() || !fs.existsSync(rootDir)) {
+    return { query: query || '', totalMatches: 0, totalFiles: 0, truncated: false, results: [] };
+  }
+
+  const normQuery = query.trim().normalize('NFC').toLowerCase();
+  const results = [];
+  let totalMatches = 0;
+  let truncated = false;
+
+  function traverse(dir) {
+    if (totalMatches >= maxResults) {
+      truncated = true;
+      return;
+    }
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (e) {
+      return;
+    }
+
+    // Sort: directories first, then alphabetical
+    entries.sort((a, b) => {
+      if (a.isDirectory() && !b.isDirectory()) return -1;
+      if (!a.isDirectory() && b.isDirectory()) return 1;
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    for (const ent of entries) {
+      if (totalMatches >= maxResults) {
+        truncated = true;
+        break;
+      }
+      if (ent.name.startsWith('.') || ent.name === 'node_modules') continue;
+
+      const fullPath = path.join(dir, ent.name);
+
+      if (ent.isDirectory()) {
+        traverse(fullPath);
+      } else if (ent.isFile()) {
+        try {
+          const stat = fs.statSync(fullPath);
+          if (!isSearchableFile(ent.name, stat)) continue;
+
+          const content = fs.readFileSync(fullPath, 'utf8');
+          const normContent = content.normalize('NFC').toLowerCase();
+          if (!normContent.includes(normQuery)) continue;
+
+          const lines = content.split(/\r?\n/);
+          const fileMatches = [];
+
+          for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+            if (totalMatches >= maxResults) {
+              truncated = true;
+              break;
+            }
+            const line = lines[lineIdx];
+            const normLine = line.normalize('NFC').toLowerCase();
+            let matchIdx = normLine.indexOf(normQuery);
+
+            if (matchIdx !== -1) {
+              while (matchIdx !== -1) {
+                totalMatches++;
+                const col = matchIdx + 1; // 1-based column
+
+                // Extract a readable snippet around the match
+                let snippet = line;
+                let snippetMatchStart = matchIdx;
+                if (line.length > 120) {
+                  const startCut = Math.max(0, matchIdx - 35);
+                  const endCut = Math.min(line.length, matchIdx + normQuery.length + 45);
+                  snippet = (startCut > 0 ? '...' : '') + line.slice(startCut, endCut) + (endCut < line.length ? '...' : '');
+                  snippetMatchStart = (startCut > 0 ? 3 : 0) + (matchIdx - startCut);
+                }
+
+                fileMatches.push({
+                  line: lineIdx + 1,
+                  column: col,
+                  lineText: line,
+                  snippet: snippet,
+                  matchIndex: snippetMatchStart,
+                  matchLength: normQuery.length
+                });
+
+                if (fileMatches.length >= 50) break; // limit matches per single file
+                matchIdx = normLine.indexOf(normQuery, matchIdx + normQuery.length);
+              }
+            }
+          }
+
+          if (fileMatches.length > 0) {
+            const relPath = path.relative(rootDir, fullPath).replace(/\\/g, '/');
+            results.push({
+              filePath: fullPath,
+              relativePath: relPath || ent.name,
+              fileName: ent.name,
+              matchCount: fileMatches.length,
+              matches: fileMatches
+            });
+          }
+        } catch (e) {
+          // Skip file on read error
+        }
+      }
+    }
+  }
+
+  traverse(rootDir);
+
+  return {
+    query: query.trim(),
+    totalMatches,
+    totalFiles: results.length,
+    truncated,
+    results
+  };
+}
+
 // Open file or URL with default system application (Excel, PDF viewer, Word, Browser, etc.)
 function openExternalFile(filePathOrUrl) {
   return new Promise((resolve) => {
@@ -566,6 +704,14 @@ const server = http.createServer(async (req, res) => {
       const reqPath = parsedUrl.searchParams.get('path') || getConfig().rootFolder;
       const tree = scanDirectory(reqPath);
       return sendJSON(res, 200, { rootFolder: reqPath, tree });
+    }
+
+    // API: Full-text Search across all files
+    if (pathname === '/api/search' && req.method === 'GET') {
+      const q = parsedUrl.searchParams.get('q') || '';
+      const reqPath = parsedUrl.searchParams.get('path') || getConfig().rootFolder;
+      const searchResult = searchDirectoryContent(reqPath, q);
+      return sendJSON(res, 200, searchResult);
     }
 
     // API: Get File Content

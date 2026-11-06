@@ -25,7 +25,7 @@
             <line x1="16" y1="17" x2="8" y2="17"/>
           </svg>
           <span class="brand-title">Desktop Memo</span>
-          <span class="version-badge" id="appVersionBadge">v1.0.24</span>
+          <span class="version-badge" id="appVersionBadge">v1.0.25</span>
         </div>
         <div class="header-tools">
           <button class="btn btn-icon btn-sm header-tool-btn" id="btnThemeToggle" title="테마 변경 (라이트 / 다크)">
@@ -103,19 +103,51 @@
         </button>
       </div>
 
-      <!-- Filter / Search Box -->
-      <div class="search-box">
-        <svg class="search-input-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="8"/>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input type="text" id="treeSearchInput" placeholder="파일 및 폴더 검색..." autocomplete="off">
+      <!-- Sidebar Search Section -->
+      <div class="sidebar-search-section">
+        <!-- Search Mode Switcher Tabs -->
+        <div class="search-mode-tabs" role="tablist">
+          <button class="search-mode-tab active" id="tabSearchFiles" role="tab" aria-selected="true" title="파일 및 폴더 이름 검색 (트리 필터링)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <span>파일명</span>
+          </button>
+          <button class="search-mode-tab" id="tabSearchContent" role="tab" aria-selected="false" title="모든 텍스트 메모에서 본문 내용 전체 검색 (단축키: Ctrl+Shift+F)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              <line x1="8" y1="11" x2="14" y2="11"/>
+              <line x1="8" y1="14" x2="12" y2="14"/>
+            </svg>
+            <span>본문 내용</span>
+          </button>
+        </div>
+
+        <!-- Filter / Search Box with Clear Button -->
+        <div class="search-box">
+          <svg class="search-input-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="text" id="treeSearchInput" placeholder="파일 및 폴더 검색..." autocomplete="off">
+          <button class="search-clear-btn" id="btnTreeSearchClear" title="검색어 지우기 (Esc)" style="display:none;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
-      <!-- Tree Container -->
-      <div class="tree-scroll-container">
+      <!-- Tree Container & Content Search Results -->
+      <div class="tree-scroll-container" id="treeScrollContainer">
         <div class="tree-root" id="treeRoot">
           <!-- Tree items dynamically injected by JS -->
+        </div>
+        <div class="content-search-results" id="contentSearchResults" style="display: none;">
+          <!-- Content search results injected by JS -->
         </div>
       </div>
     </aside>
@@ -222,6 +254,13 @@
                 </span>
                 <span class="menu-item-shortcut">Ctrl+H</span>
               </button>
+              <button class="menu-item" data-action="search-all-content">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+                  <span>전체 본문 검색</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+Shift+F</span>
+              </button>
               <button class="menu-item" data-action="select-all">
                 <span class="menu-item-left">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
@@ -244,6 +283,14 @@
               </svg>
             </button>
             <div class="menu-dropdown-panel hidden" id="toolsMenuPanel">
+              <button class="menu-item" data-action="search-all-content">
+                <span class="menu-item-left">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/><line x1="8" y1="14" x2="12" y2="14"/></svg>
+                  <span>전체 본문 검색</span>
+                </span>
+                <span class="menu-item-shortcut">Ctrl+Shift+F</span>
+              </button>
+              <div class="menu-divider"></div>
               <button class="menu-item" data-action="insert-link">
                 <span class="menu-item-left">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
@@ -742,6 +789,11 @@
                 <td><strong>단어 바꾸기 (Replace)</strong></td>
                 <td><kbd>Cmd</kbd> + <kbd>H</kbd></td>
                 <td><kbd>Ctrl</kbd> + <kbd>H</kbd></td>
+              </tr>
+              <tr>
+                <td><strong>전체 본문 검색 (모든 메모)</strong></td>
+                <td><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd></td>
+                <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd></td>
               </tr>
               <tr>
                 <td><strong>글자 크기 확대 / 축소 / 리셋</strong></td>

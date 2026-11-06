@@ -21,7 +21,9 @@ let state = {
   wordWrap: savedWrapPref !== null ? savedWrapPref === 'true' : true,
   showAllFiles: savedShowAllFiles === 'true' ? true : false,
   fontSize: savedFontSize ? parseInt(savedFontSize, 10) : 14.5,
-  draggedTreeItem: null
+  draggedTreeItem: null,
+  searchMode: 'files',
+  searchDebounceTimer: null
 };
 
 // Navigation History
@@ -40,8 +42,13 @@ const btnNewFile = document.getElementById('btnNewFile');
 const btnNewFolder = document.getElementById('btnNewFolder');
 const btnToggleAllFiles = document.getElementById('btnToggleAllFiles');
 const btnRefresh = document.getElementById('btnRefresh');
+const tabSearchFiles = document.getElementById('tabSearchFiles');
+const tabSearchContent = document.getElementById('tabSearchContent');
 const treeSearchInput = document.getElementById('treeSearchInput');
+const btnTreeSearchClear = document.getElementById('btnTreeSearchClear');
 const treeRoot = document.getElementById('treeRoot');
+const contentSearchResults = document.getElementById('contentSearchResults');
+const treeScrollContainer = document.getElementById('treeScrollContainer');
 const btnThemeToggle = document.getElementById('btnThemeToggle');
 
 const btnNavBack = document.getElementById('btnNavBack');
@@ -378,6 +385,13 @@ async function loadTree() {
     const data = await res.json();
     state.treeData = data.tree || [];
     renderTree(state.treeData, treeRoot);
+    if (treeSearchInput && treeSearchInput.value) {
+      if (state.searchMode === 'files') {
+        filterTree(treeSearchInput.value);
+      } else {
+        performContentSearch(treeSearchInput.value);
+      }
+    }
   } catch (err) {
     console.error('Failed to load tree:', err);
   }
@@ -623,6 +637,9 @@ function createTreeNode(item) {
   label.textContent = cleanLabelName;
   label.setAttribute('data-path', item.path);
   label.setAttribute('data-raw-name', cleanLabelName);
+  label.setAttribute('data-full-name', item.name);
+  row.setAttribute('data-name', item.name);
+  row.setAttribute('data-is-dir', item.isDir ? 'true' : 'false');
   row.appendChild(label);
 
   // Hover Actions
@@ -2729,10 +2746,43 @@ function setupEventListeners() {
     }
   });
 
-  // Search Filter
+  // Search Mode Tabs & Clear Button
+  if (tabSearchFiles) {
+    tabSearchFiles.addEventListener('click', () => setSearchMode('files'));
+  }
+  if (tabSearchContent) {
+    tabSearchContent.addEventListener('click', () => setSearchMode('content'));
+  }
+  if (btnTreeSearchClear) {
+    btnTreeSearchClear.addEventListener('click', clearTreeSearch);
+  }
+
+  // Search Filter & Content Search
   treeSearchInput.addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase().trim();
-    filterTree(query);
+    const val = e.target.value;
+    if (btnTreeSearchClear) {
+      btnTreeSearchClear.style.display = val ? 'flex' : 'none';
+    }
+    if (state.searchMode === 'files') {
+      filterTree(val);
+    } else {
+      if (state.searchDebounceTimer) clearTimeout(state.searchDebounceTimer);
+      state.searchDebounceTimer = setTimeout(() => {
+        performContentSearch(val);
+      }, 300);
+    }
+  });
+
+  treeSearchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      if (state.searchMode === 'content') {
+        if (state.searchDebounceTimer) clearTimeout(state.searchDebounceTimer);
+        performContentSearch(treeSearchInput.value);
+      }
+    } else if (e.key === 'Escape') {
+      clearTreeSearch();
+      treeSearchInput.blur();
+    }
   });
 
   // Modal actions
@@ -2811,13 +2861,326 @@ function handleTextareaLinkClick() {
   }
 }
 
+// Search Mode Switcher (Files vs Content)
+function setSearchMode(mode) {
+  state.searchMode = mode;
+  if (tabSearchFiles && tabSearchContent) {
+    if (mode === 'content') {
+      tabSearchFiles.classList.remove('active');
+      tabSearchFiles.setAttribute('aria-selected', 'false');
+      tabSearchContent.classList.add('active');
+      tabSearchContent.setAttribute('aria-selected', 'true');
+      treeSearchInput.placeholder = '모든 메모에서 본문 검색... (Enter)';
+      treeRoot.style.display = 'none';
+      contentSearchResults.style.display = 'flex';
+
+      const q = treeSearchInput.value.trim();
+      if (q) {
+        performContentSearch(q);
+      } else {
+        renderContentSearchInitial();
+      }
+    } else {
+      tabSearchContent.classList.remove('active');
+      tabSearchContent.setAttribute('aria-selected', 'false');
+      tabSearchFiles.classList.add('active');
+      tabSearchFiles.setAttribute('aria-selected', 'true');
+      treeSearchInput.placeholder = '파일 및 폴더 검색...';
+      contentSearchResults.style.display = 'none';
+      treeRoot.style.display = '';
+
+      filterTree(treeSearchInput.value);
+    }
+  }
+}
+
+// Clear Search Query
+function clearTreeSearch() {
+  treeSearchInput.value = '';
+  if (btnTreeSearchClear) btnTreeSearchClear.style.display = 'none';
+  if (state.searchMode === 'files') {
+    filterTree('');
+  } else {
+    renderContentSearchInitial();
+  }
+  treeSearchInput.focus();
+}
+
+// Highlight matched substring in tree label safely
+function highlightMatchText(text, query) {
+  if (!query) return escapeHtml(text);
+  const normText = (text || '').normalize('NFC');
+  const lowerText = normText.toLowerCase();
+  const lowerQuery = query.normalize('NFC').toLowerCase();
+  const idx = lowerText.indexOf(lowerQuery);
+  if (idx === -1) return escapeHtml(text);
+
+  const before = text.slice(0, idx);
+  const match = text.slice(idx, idx + query.length);
+  const after = text.slice(idx + query.length);
+  return `${escapeHtml(before)}<mark class="tree-search-mark">${escapeHtml(match)}</mark>${escapeHtml(after)}`;
+}
+
+// Recursive Tree Filtering (Keeps ancestors visible & expanded when a child matches)
 function filterTree(query) {
-  document.querySelectorAll('.tree-node-wrapper').forEach(wrapper => {
-    const label = wrapper.querySelector('.tree-item-label');
-    if (!label) return;
-    const match = !query || label.textContent.toLowerCase().includes(query);
-    wrapper.style.display = match ? '' : 'none';
+  const normalizedQuery = (query || '').trim().normalize('NFC').toLowerCase();
+  const root = document.getElementById('treeRoot');
+  if (!root) return;
+
+  // Remove any previous no-results message
+  const oldNoResults = document.getElementById('treeNoResultsMsg');
+  if (oldNoResults) oldNoResults.remove();
+
+  if (!normalizedQuery) {
+    root.querySelectorAll('.tree-node-wrapper').forEach(wrapper => {
+      wrapper.style.display = '';
+      const label = wrapper.querySelector('.tree-item-label');
+      if (label && label.dataset.rawName) {
+        label.textContent = label.dataset.rawName;
+      }
+    });
+    return;
+  }
+
+  function processNode(wrapper) {
+    const row = wrapper.querySelector(':scope > .tree-item');
+    const label = row ? row.querySelector('.tree-item-label') : null;
+    const rawName = label ? (label.dataset.rawName || label.textContent || '') : '';
+    const fullName = label ? (label.dataset.fullName || rawName) : rawName;
+    const itemPath = row ? (row.getAttribute('data-path') || '') : '';
+
+    const normRaw = rawName.normalize('NFC').toLowerCase();
+    const normFull = fullName.normalize('NFC').toLowerCase();
+    const normPath = itemPath.replace(/\\/g, '/').normalize('NFC').toLowerCase();
+
+    const isSelfMatch = normRaw.includes(normalizedQuery) ||
+                        normFull.includes(normalizedQuery) ||
+                        normPath.includes(normalizedQuery);
+
+    if (label) {
+      if (isSelfMatch) {
+        label.innerHTML = highlightMatchText(rawName, normalizedQuery);
+      } else {
+        label.textContent = rawName;
+      }
+    }
+
+    const childrenContainer = wrapper.querySelector(':scope > .tree-children');
+    let hasMatchingChild = false;
+    if (childrenContainer) {
+      const childWrappers = childrenContainer.querySelectorAll(':scope > .tree-node-wrapper');
+      childWrappers.forEach(childWrap => {
+        const childMatched = processNode(childWrap);
+        if (childMatched) hasMatchingChild = true;
+      });
+    }
+
+    const isVisible = isSelfMatch || hasMatchingChild;
+    wrapper.style.display = isVisible ? '' : 'none';
+
+    // Auto-expand folder if any child item matches so user can see it
+    if (childrenContainer && hasMatchingChild) {
+      childrenContainer.classList.remove('collapsed');
+      const chevron = row ? row.querySelector('.tree-item-chevron') : null;
+      if (chevron) chevron.classList.add('open');
+      const icon = row ? row.querySelector('.tree-item-icon') : null;
+      if (icon) icon.innerHTML = getFileIcon(rawName, true, true);
+    }
+
+    return isVisible;
+  }
+
+  let totalVisible = 0;
+  const topWrappers = root.querySelectorAll(':scope > .tree-node-wrapper');
+  topWrappers.forEach(topWrap => {
+    if (processNode(topWrap)) {
+      totalVisible++;
+    }
   });
+
+  if (totalVisible === 0) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.id = 'treeNoResultsMsg';
+    emptyMsg.className = 'tree-no-results';
+    emptyMsg.innerHTML = `
+      <div class="tree-no-results-icon">🔍</div>
+      <div class="tree-no-results-text">'${escapeHtml(query)}' 일치하는 파일 없음</div>
+    `;
+    root.appendChild(emptyMsg);
+  }
+}
+
+// Initial state guide for content search view
+function renderContentSearchInitial() {
+  if (!contentSearchResults) return;
+  contentSearchResults.innerHTML = `
+    <div class="content-search-empty">
+      <div class="content-search-empty-icon">🔍</div>
+      <div style="font-weight:600;margin-bottom:4px;">전체 본문 내용 검색</div>
+      <div style="font-size: 11px; opacity: 0.8; line-height: 1.5;">
+        검색어를 입력하면 작업 폴더 내 모든 텍스트 파일의 본문을 검색하여 일치하는 파일과 문장을 찾아줍니다.
+      </div>
+    </div>
+  `;
+}
+
+// Highlight snippet matched text
+function highlightSnippetMatch(snippet, query) {
+  if (!query) return escapeHtml(snippet);
+  const normSnip = (snippet || '').normalize('NFC');
+  const lowerSnip = normSnip.toLowerCase();
+  const lowerQ = query.normalize('NFC').toLowerCase();
+  const idx = lowerSnip.indexOf(lowerQ);
+  if (idx === -1) return escapeHtml(snippet);
+
+  const before = snippet.slice(0, idx);
+  const match = snippet.slice(idx, idx + query.length);
+  const after = snippet.slice(idx + query.length);
+  return `${escapeHtml(before)}<mark class="content-search-mark">${escapeHtml(match)}</mark>${escapeHtml(after)}`;
+}
+
+// Perform full-text search across all text files
+async function performContentSearch(query) {
+  const q = (query || '').trim();
+  if (!q) {
+    renderContentSearchInitial();
+    return;
+  }
+
+  contentSearchResults.innerHTML = `
+    <div class="content-search-loading">
+      <div class="content-search-empty-icon">⏳</div>
+      <div>'<strong>${escapeHtml(q)}</strong>' 본문 검색 중...</div>
+    </div>
+  `;
+
+  try {
+    const root = state.rootFolder || '';
+    const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&path=${encodeURIComponent(root)}`);
+    if (!res.ok) throw new Error('검색 중 서버 오류가 발생했습니다.');
+    const data = await res.json();
+
+    if (!data.results || data.results.length === 0) {
+      contentSearchResults.innerHTML = `
+        <div class="content-search-empty">
+          <div class="content-search-empty-icon">📂</div>
+          <div>'<strong>${escapeHtml(q)}</strong>' 일치하는 본문 내용이 없습니다.</div>
+        </div>
+      `;
+      return;
+    }
+
+    let html = `
+      <div class="content-search-summary">
+        <span>총 <strong>${data.totalFiles}</strong>개 파일, <strong>${data.totalMatches}</strong>건 일치</span>
+        ${data.truncated ? '<span style="color:var(--text-warning);font-size:10.5px;">(최대 한도 도달)</span>' : ''}
+      </div>
+    `;
+
+    data.results.forEach((file, fIdx) => {
+      html += `
+        <div class="content-search-file-group" data-file-idx="${fIdx}">
+          <div class="content-search-file-header" title="${escapeHtml(file.filePath)}">
+            <div class="content-search-file-title">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+              <span>${escapeHtml(file.relativePath || file.fileName)}</span>
+            </div>
+            <span class="content-search-file-count">${file.matchCount}건</span>
+          </div>
+          <div class="content-search-matches-list">
+      `;
+
+      file.matches.forEach((m) => {
+        const snipHtml = highlightSnippetMatch(m.snippet, q);
+        html += `
+          <div class="content-search-match-item" data-file-path="${escapeHtml(file.filePath)}" data-line="${m.line}" data-col="${m.column}" data-match-len="${m.matchLength}">
+            <span class="content-search-line-badge">${m.line}줄</span>
+            <span class="content-search-snippet">${snipHtml}</span>
+          </div>
+        `;
+      });
+
+      html += `
+          </div>
+        </div>
+      `;
+    });
+
+    contentSearchResults.innerHTML = html;
+
+    // Toggle collapse on file header click
+    contentSearchResults.querySelectorAll('.content-search-file-header').forEach(hdr => {
+      hdr.addEventListener('click', () => {
+        const list = hdr.nextElementSibling;
+        if (list) {
+          list.style.display = list.style.display === 'none' ? 'flex' : 'none';
+        }
+      });
+    });
+
+    // Match item click -> open file and jump to match
+    contentSearchResults.querySelectorAll('.content-search-match-item').forEach(item => {
+      item.addEventListener('click', async () => {
+        contentSearchResults.querySelectorAll('.content-search-match-item.active').forEach(el => el.classList.remove('active'));
+        item.classList.add('active');
+
+        const filePath = item.getAttribute('data-file-path');
+        const line = parseInt(item.getAttribute('data-line'), 10);
+        const col = parseInt(item.getAttribute('data-col'), 10);
+        const matchLen = parseInt(item.getAttribute('data-match-len'), 10) || q.length;
+
+        const success = await loadFile(filePath);
+        if (success !== false) {
+          jumpToContentMatch(line, col, matchLen, q);
+        }
+      });
+    });
+
+  } catch (err) {
+    contentSearchResults.innerHTML = `
+      <div class="content-search-empty" style="color:var(--text-danger);">
+        <div class="content-search-empty-icon">⚠️</div>
+        <div>검색 실패: ${escapeHtml(err.message)}</div>
+      </div>
+    `;
+  }
+}
+
+// Jump to line and select matching keyword in memo textarea
+function jumpToContentMatch(lineNum, column, matchLen, query) {
+  if (!memoTextarea) return;
+  const text = memoTextarea.value;
+  const lines = text.split('\n');
+  if (lineNum < 1 || lineNum > lines.length) return;
+
+  let lineStartOffset = 0;
+  for (let i = 0; i < lineNum - 1; i++) {
+    lineStartOffset += lines[i].length + 1;
+  }
+
+  const targetLine = lines[lineNum - 1];
+  let colOffset = targetLine.toLowerCase().indexOf(query.toLowerCase());
+  if (colOffset === -1) {
+    colOffset = Math.max(0, (column || 1) - 1);
+  }
+
+  const selStart = lineStartOffset + colOffset;
+  const selEnd = selStart + (matchLen || query.length || 1);
+
+  memoTextarea.focus();
+  memoTextarea.setSelectionRange(selStart, selEnd);
+
+  // Scroll smoothly to line
+  const cs = window.getComputedStyle(memoTextarea);
+  const lh = Math.round(parseFloat(cs.lineHeight) || 24);
+  const targetScrollTop = Math.max(0, (lineNum - 4) * lh);
+  memoTextarea.scrollTop = targetScrollTop;
+
+  renderLineNumbers();
+  renderTextHighlights();
 }
 
 // Resizable Splitter
@@ -2985,6 +3348,14 @@ function setupKeyboardShortcuts() {
 
     // Escape: Close modals / panels
     if (e.key === 'Escape') {
+      if (document.activeElement === treeSearchInput) {
+        if (treeSearchInput.value) {
+          clearTreeSearch();
+        } else {
+          treeSearchInput.blur();
+        }
+        return;
+      }
       if (frState.isOpen) {
         closeFindPanel();
         return;
@@ -3007,8 +3378,19 @@ function setupKeyboardShortcuts() {
       }
     }
 
-    // Cmd/Ctrl + F: Find
-    if (mod && (e.key === 'f' || e.key === 'F' || e.code === 'KeyF')) {
+    // Cmd/Ctrl + Shift + F: Search all files content
+    if (mod && e.shiftKey && (e.key === 'f' || e.key === 'F' || e.code === 'KeyF')) {
+      e.preventDefault();
+      setSearchMode('content');
+      if (treeSearchInput) {
+        treeSearchInput.focus();
+        treeSearchInput.select();
+      }
+      return;
+    }
+
+    // Cmd/Ctrl + F: Find in current memo
+    if (mod && !e.shiftKey && (e.key === 'f' || e.key === 'F' || e.code === 'KeyF')) {
       e.preventDefault();
       openFindPanel(false);
       return;
@@ -3258,6 +3640,13 @@ function handleMenuAction(action) {
       break;
     case 'replace':
       openFindPanel(true);
+      break;
+    case 'search-all-content':
+      setSearchMode('content');
+      if (treeSearchInput) {
+        treeSearchInput.focus();
+        treeSearchInput.select();
+      }
       break;
     case 'select-all':
       memoTextarea.focus();
