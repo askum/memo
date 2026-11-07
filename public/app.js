@@ -2581,9 +2581,9 @@ function setupEventListeners() {
     updateLineNumbers();
     highlightActiveLine();
     renderTextHighlights();
-  if (colMode && colMode.active) {
-    renderColumnSelection();
-  }
+    if (colMode && colMode.active && !colMode.isApplyingEdit) {
+      renderColumnSelection();
+    }
 
     // Check if the content is ACTUALLY different from what's on disk
     const isActuallyModified = state.lastSavedContent !== null && memoTextarea.value !== state.lastSavedContent;
@@ -2904,6 +2904,7 @@ function setupEventListeners() {
   // Intercept typed characters and IME in Column Mode
   memoTextarea.addEventListener('beforeinput', (e) => {
     if (colMode.active) {
+      if (colMode.isApplyingEdit || e.isComposing) return;
       if (e.inputType === 'insertText' && e.data) {
         e.preventDefault();
         handleColumnInsert(e.data);
@@ -2922,6 +2923,15 @@ function setupEventListeners() {
 
   memoTextarea.addEventListener('compositionend', (e) => {
     if (colMode.active && e.data) {
+      if (colMode.isApplyingEdit) return;
+      // In textarea, the browser already inserted e.data at current cursor during composition.
+      // Revert that single-cursor insertion so handleColumnInsert applies e.data across all lines cleanly.
+      const selEnd = memoTextarea.selectionEnd;
+      const text = memoTextarea.value;
+      if (selEnd >= e.data.length && text.slice(selEnd - e.data.length, selEnd) === e.data) {
+        memoTextarea.value = text.slice(0, selEnd - e.data.length) + text.slice(selEnd);
+        memoTextarea.setSelectionRange(selEnd - e.data.length, selEnd - e.data.length);
+      }
       handleColumnInsert(e.data);
     }
   });
@@ -3437,7 +3447,8 @@ let colMode = {
   anchorLine: 0,
   anchorCol: 0,
   headLine: 0,
-  headCol: 0
+  headCol: 0,
+  isApplyingEdit: false
 };
 // Ultra-High-Performance Canvas Text Measurement for Column Mode (Zero DOM reflows)
 let colMeasureCanvas = null;
@@ -3539,6 +3550,7 @@ function getLineColFromMouse(e) {
 function exitColumnMode() {
   colMode.active = false;
   colMode.isDragging = false;
+  colMode.isApplyingEdit = false;
   if (editorColumnOverlay) {
     editorColumnOverlay.innerHTML = '';
   }
@@ -3692,157 +3704,175 @@ function setNativeCursorAt(lineNum, colNum) {
 }
 
 function handleColumnInsert(insertStr) {
-  const minLine = Math.min(colMode.anchorLine, colMode.headLine);
-  const maxLine = Math.max(colMode.anchorLine, colMode.headLine);
-  const minCol = Math.min(colMode.anchorCol, colMode.headCol);
-  const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
+  if (colMode.isApplyingEdit) return;
+  colMode.isApplyingEdit = true;
+  try {
+    const minLine = Math.min(colMode.anchorLine, colMode.headLine);
+    const maxLine = Math.max(colMode.anchorLine, colMode.headLine);
+    const minCol = Math.min(colMode.anchorCol, colMode.headCol);
+    const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
 
-  const text = memoTextarea.value;
-  const lines = text.split('\n');
+    const text = memoTextarea.value;
+    const lines = text.split('\n');
 
-  let startOffset = 0;
-  for (let i = 0; i < minLine; i++) {
-    startOffset += lines[i].length + 1;
+    let startOffset = 0;
+    for (let i = 0; i < minLine; i++) {
+      startOffset += lines[i].length + 1;
+    }
+    let endOffset = startOffset;
+    for (let i = minLine; i <= maxLine; i++) {
+      endOffset += lines[i].length + (i < lines.length - 1 ? 1 : 0);
+    }
+    if (maxLine === lines.length - 1) {
+      endOffset = text.length;
+    }
+
+    const newLines = [];
+    for (let i = minLine; i <= maxLine; i++) {
+      const line = lines[i] || '';
+      const newLine = applyColumnInsert(line, minCol, maxCol, insertStr);
+      newLines.push(newLine);
+    }
+    const newBlock = newLines.join('\n');
+
+    memoTextarea.focus();
+    memoTextarea.setSelectionRange(startOffset, endOffset);
+    if (!document.execCommand('insertText', false, newBlock)) {
+      memoTextarea.value = text.slice(0, startOffset) + newBlock + text.slice(endOffset);
+    }
+
+    const newCol = minCol + insertStr.length;
+    colMode.anchorCol = newCol;
+    colMode.headCol = newCol;
+
+    setNativeCursorAt(colMode.headLine, newCol);
+
+    state.isDirty = true;
+    updateSaveStatus('editing');
+    updateStats();
+    if (state.saveTimeout) clearTimeout(state.saveTimeout);
+    state.saveTimeout = setTimeout(() => saveCurrentFile(false), 1000);
+
+    renderColumnSelection();
+    updateColumnModeStatus();
+  } finally {
+    colMode.isApplyingEdit = false;
   }
-  let endOffset = startOffset;
-  for (let i = minLine; i <= maxLine; i++) {
-    endOffset += lines[i].length + (i < lines.length - 1 ? 1 : 0);
-  }
-  if (maxLine === lines.length - 1) {
-    endOffset = text.length;
-  }
-
-  const newLines = [];
-  for (let i = minLine; i <= maxLine; i++) {
-    const line = lines[i] || '';
-    const newLine = applyColumnInsert(line, minCol, maxCol, insertStr);
-    newLines.push(newLine);
-  }
-  const newBlock = newLines.join('\n');
-
-  memoTextarea.focus();
-  memoTextarea.setSelectionRange(startOffset, endOffset);
-  if (!document.execCommand('insertText', false, newBlock)) {
-    memoTextarea.value = text.slice(0, startOffset) + newBlock + text.slice(endOffset);
-  }
-
-  const newCol = minCol + insertStr.length;
-  colMode.anchorCol = newCol;
-  colMode.headCol = newCol;
-
-  setNativeCursorAt(colMode.headLine, newCol);
-
-  state.isDirty = true;
-  updateSaveStatus('editing');
-  updateStats();
-  if (state.saveTimeout) clearTimeout(state.saveTimeout);
-  state.saveTimeout = setTimeout(() => saveCurrentFile(false), 1000);
-
-  renderColumnSelection();
-  updateColumnModeStatus();
 }
 
 function handleColumnBackspace() {
-  const minLine = Math.min(colMode.anchorLine, colMode.headLine);
-  const maxLine = Math.max(colMode.anchorLine, colMode.headLine);
-  const minCol = Math.min(colMode.anchorCol, colMode.headCol);
-  const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
+  if (colMode.isApplyingEdit) return;
+  colMode.isApplyingEdit = true;
+  try {
+    const minLine = Math.min(colMode.anchorLine, colMode.headLine);
+    const maxLine = Math.max(colMode.anchorLine, colMode.headLine);
+    const minCol = Math.min(colMode.anchorCol, colMode.headCol);
+    const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
 
-  if (minCol === maxCol && minCol <= 0) return;
+    if (minCol === maxCol && minCol <= 0) return;
 
-  const text = memoTextarea.value;
-  const lines = text.split('\n');
+    const text = memoTextarea.value;
+    const lines = text.split('\n');
 
-  let startOffset = 0;
-  for (let i = 0; i < minLine; i++) {
-    startOffset += lines[i].length + 1;
+    let startOffset = 0;
+    for (let i = 0; i < minLine; i++) {
+      startOffset += lines[i].length + 1;
+    }
+    let endOffset = startOffset;
+    for (let i = minLine; i <= maxLine; i++) {
+      endOffset += lines[i].length + (i < lines.length - 1 ? 1 : 0);
+    }
+    if (maxLine === lines.length - 1) {
+      endOffset = text.length;
+    }
+
+    const newLines = [];
+    for (let i = minLine; i <= maxLine; i++) {
+      const line = lines[i] || '';
+      const newLine = applyColumnBackspace(line, minCol, maxCol);
+      newLines.push(newLine);
+    }
+    const newBlock = newLines.join('\n');
+
+    memoTextarea.focus();
+    memoTextarea.setSelectionRange(startOffset, endOffset);
+    if (!document.execCommand('insertText', false, newBlock)) {
+      memoTextarea.value = text.slice(0, startOffset) + newBlock + text.slice(endOffset);
+    }
+
+    const newCol = (minCol !== maxCol) ? minCol : Math.max(0, minCol - 1);
+    colMode.anchorCol = newCol;
+    colMode.headCol = newCol;
+
+    setNativeCursorAt(colMode.headLine, newCol);
+
+    state.isDirty = true;
+    updateSaveStatus('editing');
+    updateStats();
+    if (state.saveTimeout) clearTimeout(state.saveTimeout);
+    state.saveTimeout = setTimeout(() => saveCurrentFile(false), 1000);
+
+    renderColumnSelection();
+    updateColumnModeStatus();
+  } finally {
+    colMode.isApplyingEdit = false;
   }
-  let endOffset = startOffset;
-  for (let i = minLine; i <= maxLine; i++) {
-    endOffset += lines[i].length + (i < lines.length - 1 ? 1 : 0);
-  }
-  if (maxLine === lines.length - 1) {
-    endOffset = text.length;
-  }
-
-  const newLines = [];
-  for (let i = minLine; i <= maxLine; i++) {
-    const line = lines[i] || '';
-    const newLine = applyColumnBackspace(line, minCol, maxCol);
-    newLines.push(newLine);
-  }
-  const newBlock = newLines.join('\n');
-
-  memoTextarea.focus();
-  memoTextarea.setSelectionRange(startOffset, endOffset);
-  if (!document.execCommand('insertText', false, newBlock)) {
-    memoTextarea.value = text.slice(0, startOffset) + newBlock + text.slice(endOffset);
-  }
-
-  const newCol = (minCol !== maxCol) ? minCol : Math.max(0, minCol - 1);
-  colMode.anchorCol = newCol;
-  colMode.headCol = newCol;
-
-  setNativeCursorAt(colMode.headLine, newCol);
-
-  state.isDirty = true;
-  updateSaveStatus('editing');
-  updateStats();
-  if (state.saveTimeout) clearTimeout(state.saveTimeout);
-  state.saveTimeout = setTimeout(() => saveCurrentFile(false), 1000);
-
-  renderColumnSelection();
-  updateColumnModeStatus();
 }
 
 function handleColumnDelete() {
-  const minLine = Math.min(colMode.anchorLine, colMode.headLine);
-  const maxLine = Math.max(colMode.anchorLine, colMode.headLine);
-  const minCol = Math.min(colMode.anchorCol, colMode.headCol);
-  const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
+  if (colMode.isApplyingEdit) return;
+  colMode.isApplyingEdit = true;
+  try {
+    const minLine = Math.min(colMode.anchorLine, colMode.headLine);
+    const maxLine = Math.max(colMode.anchorLine, colMode.headLine);
+    const minCol = Math.min(colMode.anchorCol, colMode.headCol);
+    const maxCol = Math.max(colMode.anchorCol, colMode.headCol);
 
-  const text = memoTextarea.value;
-  const lines = text.split('\n');
+    const text = memoTextarea.value;
+    const lines = text.split('\n');
 
-  let startOffset = 0;
-  for (let i = 0; i < minLine; i++) {
-    startOffset += lines[i].length + 1;
+    let startOffset = 0;
+    for (let i = 0; i < minLine; i++) {
+      startOffset += lines[i].length + 1;
+    }
+    let endOffset = startOffset;
+    for (let i = minLine; i <= maxLine; i++) {
+      endOffset += lines[i].length + (i < lines.length - 1 ? 1 : 0);
+    }
+    if (maxLine === lines.length - 1) {
+      endOffset = text.length;
+    }
+
+    const newLines = [];
+    for (let i = minLine; i <= maxLine; i++) {
+      const line = lines[i] || '';
+      const newLine = applyColumnDelete(line, minCol, maxCol);
+      newLines.push(newLine);
+    }
+    const newBlock = newLines.join('\n');
+
+    memoTextarea.focus();
+    memoTextarea.setSelectionRange(startOffset, endOffset);
+    if (!document.execCommand('insertText', false, newBlock)) {
+      memoTextarea.value = text.slice(0, startOffset) + newBlock + text.slice(endOffset);
+    }
+
+    colMode.anchorCol = minCol;
+    colMode.headCol = minCol;
+
+    setNativeCursorAt(colMode.headLine, minCol);
+
+    state.isDirty = true;
+    updateSaveStatus('editing');
+    updateStats();
+    if (state.saveTimeout) clearTimeout(state.saveTimeout);
+    state.saveTimeout = setTimeout(() => saveCurrentFile(false), 1000);
+
+    renderColumnSelection();
+    updateColumnModeStatus();
+  } finally {
+    colMode.isApplyingEdit = false;
   }
-  let endOffset = startOffset;
-  for (let i = minLine; i <= maxLine; i++) {
-    endOffset += lines[i].length + (i < lines.length - 1 ? 1 : 0);
-  }
-  if (maxLine === lines.length - 1) {
-    endOffset = text.length;
-  }
-
-  const newLines = [];
-  for (let i = minLine; i <= maxLine; i++) {
-    const line = lines[i] || '';
-    const newLine = applyColumnDelete(line, minCol, maxCol);
-    newLines.push(newLine);
-  }
-  const newBlock = newLines.join('\n');
-
-  memoTextarea.focus();
-  memoTextarea.setSelectionRange(startOffset, endOffset);
-  if (!document.execCommand('insertText', false, newBlock)) {
-    memoTextarea.value = text.slice(0, startOffset) + newBlock + text.slice(endOffset);
-  }
-
-  colMode.anchorCol = minCol;
-  colMode.headCol = minCol;
-
-  setNativeCursorAt(colMode.headLine, minCol);
-
-  state.isDirty = true;
-  updateSaveStatus('editing');
-  updateStats();
-  if (state.saveTimeout) clearTimeout(state.saveTimeout);
-  state.saveTimeout = setTimeout(() => saveCurrentFile(false), 1000);
-
-  renderColumnSelection();
-  updateColumnModeStatus();
 }
 
 // Resizable Splitter
