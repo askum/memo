@@ -1735,6 +1735,10 @@ function applyFontSize(size, showNotification = true) {
   state.fontSize = clamped;
   localStorage.setItem('memo_font_size', String(clamped));
   document.documentElement.style.setProperty('--editor-font-size', `${clamped}px`);
+  if (typeof colWidthCache !== 'undefined') {
+    colWidthCache.clear();
+    colFontKey = '';
+  }
   if (state.showLineNumbers) {
     updateLineNumbers();
   }
@@ -2643,18 +2647,32 @@ function setupEventListeners() {
     }
   });
 
+  let colDragRaf = null;
+  let lastColDragEvent = null;
+
   window.addEventListener('mousemove', (e) => {
-    if (colMode.isDragging) {
-      const coords = getLineColFromMouse(e);
-      colMode.headLine = coords.line;
-      colMode.headCol = coords.col;
-      renderColumnSelection();
-      updateColumnModeStatus();
+    if (!colMode.isDragging) return;
+    lastColDragEvent = e;
+    if (!colDragRaf) {
+      colDragRaf = requestAnimationFrame(() => {
+        colDragRaf = null;
+        if (colMode.isDragging && lastColDragEvent) {
+          const coords = getLineColFromMouse(lastColDragEvent);
+          colMode.headLine = coords.line;
+          colMode.headCol = coords.col;
+          renderColumnSelection();
+          updateColumnModeStatus();
+        }
+      });
     }
   });
 
   window.addEventListener('mouseup', () => {
     if (colMode.isDragging) {
+      if (colDragRaf) {
+        cancelAnimationFrame(colDragRaf);
+        colDragRaf = null;
+      }
       colMode.isDragging = false;
       if (colMode.anchorLine === colMode.headLine && colMode.anchorCol === colMode.headCol) {
         exitColumnMode();
@@ -3421,26 +3439,36 @@ let colMode = {
   headLine: 0,
   headCol: 0
 };
-// Accurate DOM Text Measurement for Column Mode
-let colMeasureSpan = null;
-function measureColTextWidth(text) {
-  if (!colMeasureSpan) {
-    colMeasureSpan = document.createElement('span');
-    colMeasureSpan.style.position = 'absolute';
-    colMeasureSpan.style.visibility = 'hidden';
-    colMeasureSpan.style.whiteSpace = 'pre';
-    colMeasureSpan.style.pointerEvents = 'none';
-    colMeasureSpan.style.top = '-9999px';
-    colMeasureSpan.style.left = '-9999px';
-    document.body.appendChild(colMeasureSpan);
+// Ultra-High-Performance Canvas Text Measurement for Column Mode (Zero DOM reflows)
+let colMeasureCanvas = null;
+let colMeasureCtx = null;
+let colFontKey = '';
+const colWidthCache = new Map();
+
+function getColMeasureContext() {
+  if (!colMeasureCtx) {
+    colMeasureCanvas = document.createElement('canvas');
+    colMeasureCtx = colMeasureCanvas.getContext('2d');
   }
   const cs = window.getComputedStyle(memoTextarea);
-  colMeasureSpan.style.fontFamily = cs.fontFamily;
-  colMeasureSpan.style.fontSize = cs.fontSize;
-  colMeasureSpan.style.fontWeight = cs.fontWeight;
-  colMeasureSpan.style.letterSpacing = cs.letterSpacing;
-  colMeasureSpan.textContent = text || '';
-  return colMeasureSpan.getBoundingClientRect().width;
+  const fontStr = `${cs.fontWeight || '400'} ${cs.fontSize || '14.5px'} ${cs.fontFamily || 'sans-serif'}`;
+  if (colFontKey !== fontStr) {
+    colFontKey = fontStr;
+    colWidthCache.clear();
+    colMeasureCtx.font = fontStr;
+  }
+  return { ctx: colMeasureCtx, cs };
+}
+
+function measureColTextWidth(text) {
+  if (!text) return 0;
+  const cached = colWidthCache.get(text);
+  if (cached !== undefined) return cached;
+  const { ctx } = getColMeasureContext();
+  const w = ctx.measureText(text).width;
+  if (colWidthCache.size > 2000) colWidthCache.clear();
+  colWidthCache.set(text, w);
+  return w;
 }
 
 function getLineAndColFromPos(text, pos) {
@@ -3478,7 +3506,7 @@ function getLineColFromMouse(e) {
   const lineText = lines[line] || '';
   let bestCol = 0;
 
-  // Binary search with measureColTextWidth
+  // Fast binary search using cached measureColTextWidth
   let low = 0;
   let high = lineText.length;
   while (low <= high) {
@@ -3559,16 +3587,18 @@ function renderColumnSelection() {
   const lineHeight = parseFloat(cs.lineHeight) || 24;
   const scrollTop = memoTextarea.scrollTop;
   const scrollLeft = memoTextarea.scrollLeft;
-  const clientHeight = memoTextarea.clientHeight;
+  const clientHeight = memoTextarea.clientHeight || 600;
+
+  // Viewport optimization: only render lines currently visible in viewport
+  const firstVisibleLine = Math.max(minLine, Math.floor((scrollTop - paddingTop) / lineHeight) - 1);
+  const lastVisibleLine = Math.min(maxLine, Math.ceil((scrollTop - paddingTop + clientHeight) / lineHeight) + 1);
 
   const charCellWidth = Math.max(8, measureColTextWidth('M') * 0.7);
 
   let html = '';
 
-  for (let L = minLine; L <= maxLine; L++) {
+  for (let L = firstVisibleLine; L <= lastVisibleLine; L++) {
     const y = paddingTop + L * lineHeight - scrollTop;
-    if (y + lineHeight < 0 || y > clientHeight) continue;
-
     const line = lines[L] || '';
 
     if (minCol === maxCol) {
@@ -3577,9 +3607,7 @@ function renderColumnSelection() {
       const textWidth = measureColTextWidth(textBefore);
       const x = paddingLeft + textWidth - scrollLeft;
 
-      // Dashed column cell highlight so the user can clearly see which column is selected
       html += `<div class="column-cell-highlight" style="top:${y}px;left:${x}px;width:${charCellWidth}px;height:${lineHeight}px;"></div>`;
-      // High-visibility vertical caret bar
       html += `<div class="column-caret" style="top:${y}px;left:${x - 1}px;height:${lineHeight}px;"></div>`;
     } else {
       // Rectangular Block Selection
@@ -3595,8 +3623,8 @@ function renderColumnSelection() {
 
   // Also render head caret if in block mode
   if (minCol !== maxCol) {
-    const headY = paddingTop + colMode.headLine * lineHeight - scrollTop;
-    if (headY + lineHeight >= 0 && headY <= clientHeight) {
+    if (colMode.headLine >= firstVisibleLine && colMode.headLine <= lastVisibleLine) {
+      const headY = paddingTop + colMode.headLine * lineHeight - scrollTop;
       const headLineText = lines[colMode.headLine] || '';
       const textBefore = (headLineText.length >= colMode.headCol) ? headLineText.slice(0, colMode.headCol) : headLineText + ' '.repeat(colMode.headCol - headLineText.length);
       const headX = paddingLeft + measureColTextWidth(textBefore) - scrollLeft;
