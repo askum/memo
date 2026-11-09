@@ -175,6 +175,106 @@ async function safeRename(oldPath, newPath) {
   }
 }
 
+// Validate file/folder names against OS rules, slashes, forbidden characters, and reserved device names
+function validateName(name, itemType = '항목') {
+  if (!name || typeof name !== 'string') {
+    return { valid: false, error: `${itemType} 이름을 입력해주세요.` };
+  }
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { valid: false, error: `${itemType} 이름을 입력해주세요. (공백만으로는 생성할 수 없습니다)` };
+  }
+
+  // 1. Slashes & Backslashes check
+  if (trimmed.includes('/') || trimmed.includes('\\')) {
+    return {
+      valid: false,
+      error: `${itemType} 이름에 슬래시(/)나 역슬래시(\\)를 포함할 수 없습니다.\n(운영체제의 경로 구분 기호입니다. 대신 '-' 또는 '_' 등을 사용해주세요.)`
+    };
+  }
+
+  // 2. Windows and cross-platform forbidden special characters: : * ? " < > |
+  const forbiddenMatch = trimmed.match(/[:*?"<>|]/);
+  if (forbiddenMatch) {
+    return {
+      valid: false,
+      error: `${itemType} 이름에 사용할 수 없는 특수문자('${forbiddenMatch[0]}')가 포함되어 있습니다.\n(사용 불가 특수문자: / \\ : * ? " < > |)`
+    };
+  }
+
+  // 3. Control characters
+  if (/[\x00-\x1f]/.test(trimmed)) {
+    return {
+      valid: false,
+      error: `${itemType} 이름에 사용할 수 없는 시스템 제어 문자가 포함되어 있습니다.`
+    };
+  }
+
+  // 4. Dot rules
+  if (trimmed === '.' || trimmed === '..') {
+    return {
+      valid: false,
+      error: `'.' 또는 '..'은 상위/현재 경로 예약어이므로 ${itemType} 이름으로 사용할 수 없습니다.`
+    };
+  }
+  if (trimmed.endsWith('.')) {
+    return {
+      valid: false,
+      error: `${itemType} 이름은 마침표(.)나 공백으로 끝날 수 없습니다.`
+    };
+  }
+
+  // 5. Windows reserved device names
+  const baseNameOnly = trimmed.replace(/\.[^.]+$/, '').toUpperCase();
+  const windowsReserved = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
+  if (windowsReserved.includes(baseNameOnly)) {
+    return {
+      valid: false,
+      error: `'${baseNameOnly}'은(는) 운영체제 시스템 예약어이므로 ${itemType} 이름으로 사용할 수 없습니다.`
+    };
+  }
+
+  // 6. Max length check (255 bytes)
+  if (Buffer.byteLength(trimmed, 'utf8') > 255) {
+    return {
+      valid: false,
+      error: `${itemType} 이름의 길이가 너무 깁니다. (최대 255바이트)`
+    };
+  }
+
+  return { valid: true, name: trimmed };
+}
+
+// Convert low-level OS/Node.js filesystem error codes to friendly Korean explanations
+function formatSystemError(err, actionDesc = '작업') {
+  if (!err) return `${actionDesc} 중 오류가 발생했습니다.`;
+  const code = err.code || '';
+  switch (code) {
+    case 'EACCES':
+    case 'EPERM':
+      return `해당 위치에 ${actionDesc}을(를) 진행할 수 있는 쓰기/수정 권한이 없습니다 (${code}).\n폴더 권한이나 관리자 설정을 확인해주세요.`;
+    case 'ENOENT':
+      return `대상 파일 또는 상위 폴더 경로를 찾을 수 없습니다 (${code}).\n폴더가 이동되었거나 삭제되었는지 확인해주세요.`;
+    case 'EEXIST':
+      return `이미 동일한 이름의 파일 또는 폴더가 해당 위치에 존재합니다 (${code}).`;
+    case 'EBUSY':
+    case 'ETXTBSY':
+      return `다른 프로그램에서 파일이나 폴더를 사용 중이어서 ${actionDesc}을(를) 진행할 수 없습니다 (${code}).\n사용 중인 프로그램을 닫고 다시 시도해주세요.`;
+    case 'ENOSPC':
+      return `디스크 저장 공간이 부족하여 ${actionDesc}을(를) 진행할 수 없습니다 (${code}).`;
+    case 'ENAMETOOLONG':
+      return `파일 또는 폴더 이름/경로가 너무 깁니다 (${code}).`;
+    case 'EINVAL':
+      return `이름에 운영체제에서 지원하지 않는 기호가 포함되어 있거나 경로가 올바르지 않습니다 (${code}).`;
+    case 'EXDEV':
+      return `서로 다른 디스크 드라이브 간에는 직접 이동/변경할 수 없습니다 (${code}).`;
+    case 'ENOTEMPTY':
+      return `폴더가 비어 있지 않아 작업을 진행할 수 없습니다 (${code}).`;
+    default:
+      return `${actionDesc} 실패: ${err.message || code || '알 수 없는 오류'}`;
+  }
+}
+
 // Directory tree scanner
 function scanDirectory(dirPath) {
   if (!fs.existsSync(dirPath)) return [];
@@ -733,10 +833,15 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/api/file' && req.method === 'POST') {
       const { path: filePath, content } = await parseBody(req);
       if (!filePath) return sendJSON(res, 400, { error: 'Path is required' });
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-      fs.writeFileSync(filePath, content ?? '', 'utf-8');
-      const stat = fs.statSync(filePath);
-      return sendJSON(res, 200, { success: true, path: filePath, mtime: stat.mtimeMs });
+      try {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(filePath, content ?? '', 'utf-8');
+        const stat = fs.statSync(filePath);
+        return sendJSON(res, 200, { success: true, path: filePath, mtime: stat.mtimeMs });
+      } catch (err) {
+        console.error('Save file error:', err);
+        return sendJSON(res, 500, { error: formatSystemError(err, '파일 저장') });
+      }
     }
 
     // API: Create File
@@ -754,6 +859,10 @@ const server = http.createServer(async (req, res) => {
         targetDir = getConfig().rootFolder;
       }
 
+      if (!targetDir || !fs.existsSync(targetDir)) {
+        return sendJSON(res, 404, { error: '파일을 생성할 대상 폴더 경로를 찾을 수 없습니다. (폴더가 이동되었거나 삭제되었을 수 있습니다)' });
+      }
+
       // If fileName is empty or autoName is true, generate automatic unique name (새 메모.txt, 새 메모 1.txt, ...)
       if (!fileName || autoName) {
         let base = fileName || '새 메모';
@@ -766,24 +875,39 @@ const server = http.createServer(async (req, res) => {
         }
         fileName = candidate;
       } else {
-        if (!path.extname(fileName)) fileName += '.txt';
+        // Validate custom file name
+        const ext = path.extname(fileName);
+        const base = ext ? fileName.slice(0, -ext.length) : fileName;
+        const v = validateName(base, '파일');
+        if (!v.valid) {
+          return sendJSON(res, 400, { error: v.error });
+        }
+        if (!ext) fileName += '.txt';
         const fullPath = path.join(targetDir, fileName);
         if (fs.existsSync(fullPath)) {
-          return sendJSON(res, 400, { error: `'${fileName}' 파일이 이미 존재합니다.` });
+          return sendJSON(res, 400, { error: `'${path.basename(fileName)}' 파일이 해당 위치에 이미 존재합니다.` });
         }
       }
 
-      const fullPath = path.join(targetDir, fileName);
-      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
-      fs.writeFileSync(fullPath, '', 'utf-8');
-      return sendJSON(res, 200, { success: true, path: fullPath, fileName });
+      try {
+        const fullPath = path.join(targetDir, fileName);
+        fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+        fs.writeFileSync(fullPath, '', 'utf-8');
+        return sendJSON(res, 200, { success: true, path: fullPath, fileName });
+      } catch (err) {
+        console.error('Create file error:', err);
+        return sendJSON(res, 500, { error: formatSystemError(err, '파일 생성') });
+      }
     }
 
     // API: Create Folder
     if (pathname === '/api/create-folder' && req.method === 'POST') {
       const { dirPath, folderName } = await parseBody(req);
       const name = (folderName || '').trim();
-      if (!name) return sendJSON(res, 400, { error: '폴더 이름을 입력하세요.' });
+      const v = validateName(name, '폴더');
+      if (!v.valid) {
+        return sendJSON(res, 400, { error: v.error });
+      }
 
       let targetDir = dirPath;
       if (targetDir && fs.existsSync(targetDir)) {
@@ -795,30 +919,64 @@ const server = http.createServer(async (req, res) => {
         targetDir = getConfig().rootFolder;
       }
 
-      const fullPath = path.join(targetDir, name);
-      if (fs.existsSync(fullPath)) {
-        return sendJSON(res, 400, { error: `'${name}' 폴더가 이미 존재합니다.` });
+      if (!targetDir || !fs.existsSync(targetDir)) {
+        return sendJSON(res, 404, { error: '폴더를 생성할 상위 경로를 찾을 수 없습니다. (폴더가 이동되었거나 삭제되었을 수 있습니다)' });
       }
-      fs.mkdirSync(fullPath, { recursive: true });
-      return sendJSON(res, 200, { success: true, path: fullPath });
+
+      const fullPath = path.join(targetDir, v.name);
+      if (fs.existsSync(fullPath)) {
+        return sendJSON(res, 400, { error: `'${v.name}'(이)라는 이름의 폴더가 해당 위치에 이미 존재합니다. 다른 이름을 사용해주세요.` });
+      }
+
+      try {
+        fs.mkdirSync(fullPath, { recursive: true });
+        return sendJSON(res, 200, { success: true, path: fullPath });
+      } catch (err) {
+        console.error('Create folder error:', err);
+        return sendJSON(res, 500, { error: formatSystemError(err, '폴더 생성') });
+      }
     }
 
     // API: Rename
     if (pathname === '/api/rename' && req.method === 'POST') {
       const { oldPath, newName } = await parseBody(req);
-      let name = (newName || '').trim();
-      if (!name) return sendJSON(res, 400, { error: '새 이름을 입력하세요.' });
-      const oldExt = path.extname(oldPath);
-      if (!path.extname(name) && oldExt) {
-        name += oldExt;
-      }
-      const parentDir = path.dirname(oldPath);
-      const newPath = path.join(parentDir, name);
-      if (fs.existsSync(newPath)) {
-        return sendJSON(res, 400, { error: `'${name}' 항목이 이미 존재합니다.` });
+      if (!oldPath || !fs.existsSync(oldPath)) {
+        return sendJSON(res, 404, { error: '이름을 변경할 원본 파일 또는 폴더를 찾을 수 없습니다.' });
       }
 
-      await safeRename(oldPath, newPath);
+      let isDir = false;
+      try {
+        isDir = fs.statSync(oldPath).isDirectory();
+      } catch (e) {
+        return sendJSON(res, 404, { error: '원본 항목 정보를 읽을 수 없습니다.' });
+      }
+      const itemType = isDir ? '폴더' : '파일';
+
+      let name = (newName || '').trim();
+      const oldExt = path.extname(oldPath);
+      // If user typed name without extension for file, keep old extension
+      if (!isDir && !path.extname(name) && oldExt) {
+        name += oldExt;
+      }
+
+      const checkName = (!isDir && path.extname(name)) ? name.slice(0, -path.extname(name).length) : name;
+      const v = validateName(checkName, itemType);
+      if (!v.valid) {
+        return sendJSON(res, 400, { error: v.error });
+      }
+
+      const parentDir = path.dirname(oldPath);
+      const newPath = path.join(parentDir, name);
+      if (fs.existsSync(newPath) && path.resolve(newPath) !== path.resolve(oldPath)) {
+        return sendJSON(res, 400, { error: `'${name}'(이)라는 이름의 ${itemType}이(가) 이미 존재합니다. 다른 이름을 사용해주세요.` });
+      }
+
+      try {
+        await safeRename(oldPath, newPath);
+      } catch (err) {
+        console.error('Rename error:', err);
+        return sendJSON(res, 500, { error: formatSystemError(err, `${itemType} 이름 변경`) });
+      }
 
       // If lastOpenedFile is inside or equal to oldPath, update config
       const cfg = getConfig();
@@ -874,7 +1032,12 @@ const server = http.createServer(async (req, res) => {
         return sendJSON(res, 400, { error: `'${itemName}' 항목이 대상 위치에 이미 존재합니다.` });
       }
 
-      await safeRename(sourcePath, newPath);
+      try {
+        await safeRename(sourcePath, newPath);
+      } catch (err) {
+        console.error('Move error:', err);
+        return sendJSON(res, 500, { error: formatSystemError(err, '항목 이동') });
+      }
 
       // If lastOpenedFile is inside or equal to sourcePath, update config
       const cfg = getConfig();
@@ -899,11 +1062,17 @@ const server = http.createServer(async (req, res) => {
       if (!targetPath || !fs.existsSync(targetPath)) {
         return sendJSON(res, 404, { error: 'Target not found' });
       }
-      const stat = fs.statSync(targetPath);
-      if (stat.isDirectory()) {
-        fs.rmSync(targetPath, { recursive: true, force: true });
-      } else {
-        fs.unlinkSync(targetPath);
+
+      try {
+        const stat = fs.statSync(targetPath);
+        if (stat.isDirectory()) {
+          fs.rmSync(targetPath, { recursive: true, force: true });
+        } else {
+          fs.unlinkSync(targetPath);
+        }
+      } catch (err) {
+        console.error('Delete error:', err);
+        return sendJSON(res, 500, { error: formatSystemError(err, '항목 삭제') });
       }
 
       // If lastOpenedFile is the deleted item or located inside the deleted folder, clear it

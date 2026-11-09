@@ -106,9 +106,11 @@ const modalOverlay = document.getElementById('modalOverlay');
 const modalTitle = document.getElementById('modalTitle');
 const modalDesc = document.getElementById('modalDesc');
 const modalInput = document.getElementById('modalInput');
+const modalError = document.getElementById('modalError');
 const btnModalCancel = document.getElementById('btnModalCancel');
 const btnModalConfirm = document.getElementById('btnModalConfirm');
 let modalCallback = null;
+let modalValidationType = null;
 
 // Help Modal Elements
 const btnHelp = document.getElementById('btnHelp');
@@ -1850,19 +1852,98 @@ function updateWordWrapVisibility() {
   }
 }
 
+// Cross-platform filename and folder name validator
+function validateItemName(name, itemType = '항목') {
+  if (!name || typeof name !== 'string') {
+    return { valid: false, error: `${itemType} 이름을 입력해주세요.` };
+  }
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return { valid: false, error: `${itemType} 이름을 입력해주세요. (공백만으로는 생성할 수 없습니다)` };
+  }
+
+  // 1. Slashes & Backslashes
+  if (trimmed.includes('/') || trimmed.includes('\\')) {
+    return {
+      valid: false,
+      error: `${itemType} 이름에 슬래시(/)나 역슬래시(\\)를 포함할 수 없습니다.\n(운영체제의 경로 구분 기호입니다. 대신 '-' 또는 '_' 등을 사용해주세요.)`
+    };
+  }
+
+  // 2. Windows / OS forbidden special characters
+  const forbiddenMatch = trimmed.match(/[:*?"<>|]/);
+  if (forbiddenMatch) {
+    return {
+      valid: false,
+      error: `${itemType} 이름에 사용할 수 없는 특수문자('${forbiddenMatch[0]}')가 포함되어 있습니다.\n(사용 불가 특수문자: / \\ : * ? " < > |)`
+    };
+  }
+
+  // 3. Dot rules
+  if (trimmed === '.' || trimmed === '..') {
+    return {
+      valid: false,
+      error: `'.' 또는 '..'은 시스템 예약 경로이므로 ${itemType} 이름으로 사용할 수 없습니다.`
+    };
+  }
+  if (trimmed.endsWith('.')) {
+    return {
+      valid: false,
+      error: `${itemType} 이름은 마침표(.)나 공백으로 끝날 수 없습니다.`
+    };
+  }
+
+  // 4. Windows reserved device names
+  const baseNameOnly = trimmed.replace(/\.[^.]+$/, '').toUpperCase();
+  const windowsReserved = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
+  if (windowsReserved.includes(baseNameOnly)) {
+    return {
+      valid: false,
+      error: `'${baseNameOnly}'은(는) 운영체제 시스템 예약어이므로 ${itemType} 이름으로 사용할 수 없습니다.`
+    };
+  }
+
+  return { valid: true, name: trimmed };
+}
+
 // Prompt Modals
-function showModal(title, desc, initialValue, onConfirm) {
+function showModal(title, desc, initialValue, onConfirm, validationType = null) {
   modalTitle.textContent = title;
   modalDesc.textContent = desc;
   modalInput.value = initialValue || '';
+  modalInput.classList.remove('error');
+  if (modalError) {
+    modalError.textContent = '';
+    modalError.classList.add('hidden');
+  }
   modalOverlay.classList.remove('hidden');
   modalInput.focus();
   modalCallback = onConfirm;
+  modalValidationType = validationType;
+}
+
+function setModalError(msg) {
+  if (!modalError) return;
+  if (msg) {
+    modalError.textContent = msg;
+    modalError.classList.remove('hidden');
+    modalInput.classList.add('error');
+  } else {
+    modalError.textContent = '';
+    modalError.classList.add('hidden');
+    modalInput.classList.remove('error');
+  }
 }
 
 function closeModal() {
   modalOverlay.classList.add('hidden');
   modalCallback = null;
+  modalValidationType = null;
+  if (modalError) {
+    modalError.textContent = '';
+    modalError.classList.add('hidden');
+  }
+  modalInput.classList.remove('error');
 }
 
 // Helper to render the header file title with unsaved dot and rename icon
@@ -1916,7 +1997,7 @@ async function promptNewFile(targetDir) {
     const cleanTitle = getDisplayName(data.fileName, false);
     showToast(`✨ '${cleanTitle}' 생성됨 (제목을 클릭해 이름 변경 가능)`);
   } catch (err) {
-    alert(err.message);
+    alert('새 메모 생성 실패:\n' + err.message);
   }
 }
 
@@ -1928,81 +2009,86 @@ function promptNewFolder(targetDir) {
     `'${folderRel}' 위치에 생성할 폴더 이름을 입력하세요:`,
     '',
     async (folderName) => {
-      if (!folderName.trim()) return;
-      try {
-        const res = await fetch('/api/create-folder', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ dirPath: dir, folderName: folderName.trim() })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        await loadTree();
-        if (folderBrowserModalOverlay && !folderBrowserModalOverlay.classList.contains('hidden')) {
-          await loadFolderBrowserDirs(fbState.browsingPath);
-        }
-      } catch (err) {
-        alert(err.message);
+      const v = validateItemName(folderName, '폴더');
+      if (!v.valid) {
+        throw new Error(v.error);
       }
-    }
+      const res = await fetch('/api/create-folder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dirPath: dir, folderName: v.name })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '폴더 생성에 실패했습니다.');
+      await loadTree();
+      if (folderBrowserModalOverlay && !folderBrowserModalOverlay.classList.contains('hidden')) {
+        await loadFolderBrowserDirs(fbState.browsingPath);
+      }
+      showToast(`📁 '${v.name}' 폴더가 생성되었습니다.`);
+      return true;
+    },
+    '폴더'
   );
 }
 
 function promptRename(oldPath, currName) {
   const isDir = !pathHasExtension(currName);
+  const itemType = isDir ? '폴더' : '파일';
   const cleanCurrent = getDisplayName(currName, isDir);
   showModal(
     '이름 변경',
-    `새로운 이름을 입력하세요:`,
+    `새로운 ${itemType} 이름을 입력하세요:`,
     cleanCurrent,
     async (newName) => {
       const trimmedNew = newName.trim();
-      if (!trimmedNew || trimmedNew === cleanCurrent) return;
-      try {
-        // If the currently open file is inside or equal to oldPath, save any pending edits first
-        if (state.isDirty && state.currentFilePath && isPathEqualOrInside(state.currentFilePath, oldPath)) {
-          await saveCurrentFile(false);
-        }
-
-        const res = await fetch('/api/rename', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ oldPath, newName: trimmedNew })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-
-        const rewritePath = (p) => {
-          if (!p) return p;
-          const normP = p.replace(/\\/g, '/');
-          const normOld = oldPath.replace(/\\/g, '/').replace(/\/+$/, '');
-          const normNew = data.newPath.replace(/\\/g, '/').replace(/\/+$/, '');
-          if (normP === normOld) return data.newPath;
-          if (normP.startsWith(normOld + '/')) {
-            return normNew + normP.slice(normOld.length);
-          }
-          return p;
-        };
-
-        navHistory.past = navHistory.past.map(rewritePath);
-        navHistory.future = navHistory.future.map(rewritePath);
-
-        const isCurrentAffected = state.currentFilePath && isPathEqualOrInside(state.currentFilePath, oldPath);
-
-        await loadTree();
-
-        if (isCurrentAffected) {
-          const updatedCurrent = rewritePath(state.currentFilePath);
-          // Do NOT pre-mutate state.currentFilePath; loadFile with forceReload will fetch,
-          // update state.currentFilePath, renderHeaderFileTitle, and update filePathDisplay!
-          await loadFile(updatedCurrent, true, true);
-        }
-
-        showToast(`✏️ '${trimmedNew}'(으)로 이름이 변경되었습니다.`);
-      } catch (err) {
-        alert(err.message);
+      if (!trimmedNew || trimmedNew === cleanCurrent) return true;
+      const v = validateItemName(trimmedNew, itemType);
+      if (!v.valid) {
+        throw new Error(v.error);
       }
-    }
+      // If the currently open file is inside or equal to oldPath, save any pending edits first
+      if (state.isDirty && state.currentFilePath && isPathEqualOrInside(state.currentFilePath, oldPath)) {
+        await saveCurrentFile(false);
+      }
+
+      const res = await fetch('/api/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldPath, newName: v.name })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '이름 변경에 실패했습니다.');
+
+      const rewritePath = (p) => {
+        if (!p) return p;
+        const normP = p.replace(/\\/g, '/');
+        const normOld = oldPath.replace(/\\/g, '/').replace(/\/+$/, '');
+        const normNew = data.newPath.replace(/\\/g, '/').replace(/\/+$/, '');
+        if (normP === normOld) return data.newPath;
+        if (normP.startsWith(normOld + '/')) {
+          return normNew + normP.slice(normOld.length);
+        }
+        return p;
+      };
+
+      navHistory.past = navHistory.past.map(rewritePath);
+      navHistory.future = navHistory.future.map(rewritePath);
+
+      const isCurrentAffected = state.currentFilePath && isPathEqualOrInside(state.currentFilePath, oldPath);
+
+      await loadTree();
+
+      if (isCurrentAffected) {
+        const updatedCurrent = rewritePath(state.currentFilePath);
+        // Do NOT pre-mutate state.currentFilePath; loadFile with forceReload will fetch,
+        // update state.currentFilePath, renderHeaderFileTitle, and update filePathDisplay!
+        await loadFile(updatedCurrent, true, true);
+      }
+
+      showToast(`✏️ '${v.name}'(으)로 이름이 변경되었습니다.`);
+      return true;
+    },
+    itemType
   );
 }
 
@@ -3039,18 +3125,64 @@ function setupEventListeners() {
 
   // Modal actions
   btnModalCancel.onclick = closeModal;
-  btnModalConfirm.onclick = () => {
-    if (modalCallback) modalCallback(modalInput.value);
-    closeModal();
-  };
+
+  async function submitCustomModal() {
+    if (!modalCallback) {
+      closeModal();
+      return;
+    }
+    const val = modalInput.value;
+    if (modalValidationType) {
+      const v = validateItemName(val, modalValidationType);
+      if (!v.valid) {
+        setModalError(`⚠️ ${v.error}`);
+        modalInput.focus();
+        return;
+      }
+    }
+    try {
+      btnModalConfirm.disabled = true;
+      const result = await modalCallback(val);
+      if (result !== false) {
+        closeModal();
+      }
+    } catch (err) {
+      setModalError(`❌ ${err.message}`);
+      modalInput.focus();
+    } finally {
+      btnModalConfirm.disabled = false;
+    }
+  }
+
+  btnModalConfirm.onclick = submitCustomModal;
+
   modalInput.onkeydown = (e) => {
     if (e.key === 'Enter') {
-      if (modalCallback) modalCallback(modalInput.value);
-      closeModal();
+      e.preventDefault();
+      submitCustomModal();
     } else if (e.key === 'Escape') {
+      e.preventDefault();
       closeModal();
     }
   };
+
+  modalInput.addEventListener('input', () => {
+    if (!modalValidationType) {
+      setModalError(null);
+      return;
+    }
+    const val = modalInput.value;
+    if (val.includes('/') || val.includes('\\')) {
+      setModalError(`⚠️ ${modalValidationType} 이름에 슬래시(/)나 역슬래시(\\)는 사용할 수 없습니다.\n(운영체제 경로 구분 기호입니다. 대신 '-' 또는 '_' 등을 사용해주세요.)`);
+      return;
+    }
+    const forbiddenMatch = val.match(/[:*?"<>|]/);
+    if (forbiddenMatch) {
+      setModalError(`⚠️ ${modalValidationType} 이름에 특수문자('${forbiddenMatch[0]}')는 사용할 수 없습니다.\n(사용 불가 특수문자: / \\ : * ? " < > |)`);
+      return;
+    }
+    setModalError(null);
+  });
 }
 
 // Detect [[link]], [label](target), or path under cursor on double-click or Cmd/Ctrl+Click
