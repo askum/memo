@@ -1228,23 +1228,67 @@ button svg,
   font-size: 12px;
   color: var(--text-faint);
   text-align: right;
-  padding: 24px 8px 24px 0;
+  padding: 24px 10px 24px 0;
+  box-sizing: border-box;
 }
 
 .gutter-line {
-  line-height: 1.7;
-  height: calc(1.7 * 14.5px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: flex-end;
+  box-sizing: border-box;
   cursor: pointer;
   transition: color 0.1s ease;
+  width: 100%;
 }
 
 .gutter-line:hover {
   color: var(--text-secondary);
 }
 
+.gutter-line.active,
 .gutter-line.active-line {
   color: var(--accent-primary);
   font-weight: 600;
+}
+
+.gutter-num {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  box-sizing: border-box;
+  line-height: 1;
+}
+
+/* Mirror element for accurate wrapped line-height measurement */
+.editor-mirror {
+  position: absolute;
+  top: 0;
+  left: -9999px;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -9999;
+  margin: 0;
+  padding: 0;
+  border: none;
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  letter-spacing: -0.01em;
+  tab-size: 2;
+}
+
+.mirror-row {
+  margin: 0;
+  padding: 0;
+  border: none;
+  box-sizing: border-box;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 .memo-textarea {

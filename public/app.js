@@ -1676,9 +1676,22 @@ function renderLineNumbers() {
   const lines = text.split('\n');
   const lineCount = lines.length;
 
-  // Auto-expand gutter width for 3, 4, 5+ digits so numbers never clip
+  const cs = window.getComputedStyle(memoTextarea);
+  const baseHeight = parseFloat(cs.lineHeight) || ((state.fontSize || 14.5) * 1.7);
+  const paddingTop = parseFloat(cs.paddingTop) || 24;
+  const paddingBottom = parseFloat(cs.paddingBottom) || 24;
+
+  // Sync gutter paddings with textarea so top baseline matches exactly
+  editorGutter.style.paddingTop = `${paddingTop}px`;
+  editorGutter.style.paddingBottom = `${paddingBottom}px`;
+
+  // Scale gutter font-size and width proportionally with editor font-size
+  const gutterFontSize = Math.max(11, Math.min(24, Math.round((state.fontSize || 14.5) * 0.82)));
+  editorGutter.style.fontSize = `${gutterFontSize}px`;
+
   const digits = Math.max(2, String(lineCount).length);
-  const gutterWidth = Math.max(48, 16 + digits * 9);
+  const charWidth = gutterFontSize * 0.65;
+  const gutterWidth = Math.max(44, Math.ceil(20 + digits * charWidth));
   editorGutter.style.width = `${gutterWidth}px`;
   editorGutter.style.minWidth = `${gutterWidth}px`;
 
@@ -1687,28 +1700,24 @@ function renderLineNumbers() {
 
   let gutterHtml = '';
 
-  const cs = window.getComputedStyle(memoTextarea);
-  const baseHeight = Math.round(parseFloat(cs.lineHeight) || 24);
-
   if (!state.wordWrap) {
-    // When word wrap is OFF, line height strictly follows font line-height
+    // When word wrap is OFF, line height strictly follows exact subpixel baseHeight
     for (let i = 0; i < lineCount; i++) {
       const isActive = (i === currentLineIdx);
-      gutterHtml += `<div class="gutter-line${isActive ? ' active' : ''}" data-line="${i + 1}" style="height: ${baseHeight}px; line-height: ${baseHeight}px;" title="클릭하여 ${i + 1}번째 줄 선택">${i + 1}</div>`;
+      gutterHtml += `<div class="gutter-line${isActive ? ' active' : ''}" data-line="${i + 1}" style="height: ${baseHeight}px;" title="클릭하여 ${i + 1}번째 줄 선택"><span class="gutter-num" style="height: ${baseHeight}px;">${i + 1}</span></div>`;
     }
   } else {
     // When word wrap is ON, measure wrapped line heights with mirror
     const mirror = getMirrorElement();
-    const pl = parseFloat(cs.paddingLeft) || 24;
-    const pr = parseFloat(cs.paddingRight) || 24;
+    const pl = parseFloat(cs.paddingLeft) || 32;
+    const pr = parseFloat(cs.paddingRight) || 32;
     const contentWidth = Math.max(60, memoTextarea.clientWidth - pl - pr);
     mirror.style.width = `${contentWidth}px`;
     mirror.style.fontFamily = cs.fontFamily;
     mirror.style.fontSize = cs.fontSize;
     mirror.style.lineHeight = cs.lineHeight;
-    mirror.style.whiteSpace = 'pre-wrap';
-    mirror.style.wordBreak = 'break-word';
-    mirror.style.overflowWrap = 'break-word';
+    mirror.style.letterSpacing = cs.letterSpacing || '-0.01em';
+    mirror.style.tabSize = cs.tabSize || '2';
 
     // Render mirror lines to measure wrapped line heights
     let mirrorHtml = '';
@@ -1722,9 +1731,18 @@ function renderLineNumbers() {
     // Measure heights and generate gutter markup
     const rows = mirror.children;
     for (let i = 0; i < lineCount; i++) {
-      const h = rows[i] ? rows[i].offsetHeight : baseHeight;
+      let h = baseHeight;
+      if (lines[i] && lines[i].length > 0 && rows[i]) {
+        const measured = rows[i].getBoundingClientRect().height;
+        if (measured > baseHeight + 1) {
+          const wrapCount = Math.max(1, Math.round(measured / baseHeight));
+          h = wrapCount * baseHeight;
+        } else {
+          h = baseHeight;
+        }
+      }
       const isActive = (i === currentLineIdx);
-      gutterHtml += `<div class="gutter-line${isActive ? ' active' : ''}" data-line="${i + 1}" style="height: ${h}px; line-height: ${baseHeight}px;" title="클릭하여 ${i + 1}번째 줄 선택">${i + 1}</div>`;
+      gutterHtml += `<div class="gutter-line${isActive ? ' active' : ''}" data-line="${i + 1}" style="height: ${h}px;" title="클릭하여 ${i + 1}번째 줄 선택"><span class="gutter-num" style="height: ${baseHeight}px;">${i + 1}</span></div>`;
     }
   }
 
@@ -3559,7 +3577,7 @@ function jumpToContentMatch(lineNum, column, matchLen, query) {
 
   // Scroll smoothly to line
   const cs = window.getComputedStyle(memoTextarea);
-  const lh = Math.round(parseFloat(cs.lineHeight) || 24);
+  const lh = parseFloat(cs.lineHeight) || ((state.fontSize || 14.5) * 1.7);
   const targetScrollTop = Math.max(0, (lineNum - 4) * lh);
   memoTextarea.scrollTop = targetScrollTop;
 
